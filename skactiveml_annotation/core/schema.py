@@ -208,10 +208,10 @@ class Batch:
         return batch
 
 class AnnotationMetaData(pydantic.BaseModel):
-    first_view_time: str = ''
-    total_view_duration: str = ''
-    last_edit_time: str = ''
-    skip_intended_cnt: int = 0
+    first_view_time: str = '' # Time when the sample was first presented
+    total_view_duration: str = '' # Total presentation time
+    last_edit_time: str = '' # Last time when a change was made
+    skip_intended_cnt: int = 0 # How many time the sample has been activly skipped
 
 
 class Annotation(pydantic.BaseModel):
