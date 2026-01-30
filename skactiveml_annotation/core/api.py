@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 import base64
 from typing import TypeVar, TypeGuard
@@ -31,7 +32,6 @@ import skactiveml_annotation.paths as sap
 
 from skactiveml_annotation.core.schema import (
     ActiveMlConfig,
-    AnnotationList,
     EmbeddingConfig,
     QueryStrategyConfig,
     ModelConfig,
@@ -145,7 +145,7 @@ def request_query(
     session_cfg: SessionConfig,
     X: np.ndarray,
     filter_out_emb_indices: list[int]
-) -> tuple[Batch, AnnotationList]:
+) -> tuple[Batch, list[Annotation | None]]:
     y = _load_or_init_annotations(X, cfg.dataset)
 
     # INFO: Dont query on these samples in filter_out_emb_indices by marking them as discarded
@@ -179,7 +179,7 @@ def request_query(
         )
 
     # Map back to original indices.
-    # TODo naming sometimes query_indices sometimes embedding. Inconsistent.
+    # TODO: naming sometimes query_indices sometimes embedding. Inconsistent.
     query_indices = mapping[query_indices_cand]
 
     # TODO sometimes query returns list of np.int64? It has be be serializeable in current implementation.
@@ -211,11 +211,9 @@ def request_query(
     file_paths = get_file_paths(cfg.dataset.id, cfg.embedding.id, query_indices)
     annotations_data = _deserialize_annotations(cfg.dataset.id)
     # file_paths are the keys
-    annotations_list = AnnotationList(
-        annotations = [
-            annotations_data.get(f_path, None) for f_path in file_paths
-        ]
-    )
+    annotations_list = [
+        annotations_data.get(f_path, None) for f_path in file_paths
+    ]
 
     return (
         Batch(
@@ -271,15 +269,12 @@ def load_embeddings(
     return X
 
 
-# TODO rename to update json_annotations
-def completed_batch(
-    dataset_id: str, 
-    embedding_id: str, 
+def update_json_annotations(
+    dataset_id: str,
+    embedding_id: str,
     new_annotations: list[Annotation],
-    batch: Batch # TODO really only the emd_indices are needed
+    batch: Batch,
 ):
-    logging.info("\ncompleted batch")
-
     file_paths = get_file_paths(dataset_id, embedding_id, batch.emb_indices)
 
     update_annotations(
@@ -292,17 +287,7 @@ def completed_batch(
     # Put the idx on the last element of the batch
     # TODO: No longer increment index to last position
     increment_global_history_idx(dataset_id, len(new_annotations) - 1)
-    logging.debug15("Increment history_idx to: ", get_global_history_idx(dataset_id))
-
-
-# TODO: Not needed?
-def get_num_annotated_ram(annotations: Iterable[Annotation | None]):
-    # Samples are counted as annotated if they have a label or are discareded
-    cnt = 0
-    for annot in annotations:
-        if annot is not None and annot.label != MISSING_LABEL_MARKER:
-            cnt += 1
-    return cnt
+    logging.debug15("Increment history_idx to: %s", get_global_history_idx(dataset_id))
 
 
 def get_num_annotated_not_skipped(dataset_id: str) -> int:
@@ -408,8 +393,11 @@ def auto_annotate(
 
 
 def save_partial_annotations(batch: Batch, dataset_id: str, embedding_id: str, annotations: list[Annotation | None]):
-    annotated = list(filter(_not_none_type_narrowing, annotations)) 
-    completed_batch(dataset_id, embedding_id, annotated, batch)
+    # Save all annotations including skipped ones to update meta data.
+    # Dont save annotations that have not been looked at at all
+    # at the time of skipping the batch
+    annotated = list(filter(_not_none_type_narrowing, annotations))
+    update_json_annotations(dataset_id, embedding_id, annotated, batch)
 
 
 def add_class(
@@ -523,8 +511,8 @@ def _insert_class_prob_column(probas: list[list[float]], idx: int) -> list[list[
 
 # TODO put this stuff into utils package?
 def _load_or_init_annotations(
-        X: np.ndarray,  # TODO Should not take X but rather num_of_samples
-        dataset_cfg: DatasetConfig
+    X: np.ndarray,
+    dataset_cfg: DatasetConfig,
 ) -> np.ndarray:
     """Load existing labels or initialize with missing labels."""
     num_samples = len(X)
@@ -828,6 +816,7 @@ def get_global_history_idx(dataset_id: str) -> int | None:
     """
     path = sap.HISTORY_IDX / f"{dataset_id}.json"
 
+    # TODO: It should not return None
     if not path.exists():
         return None
 
@@ -835,7 +824,6 @@ def get_global_history_idx(dataset_id: str) -> int | None:
     content = path.read_text()
     model = HistoryIdx.model_validate_json(content)
     return model.idx
-
 
 def set_global_history_idx(dataset_id: str, value: int) -> None:
     """
@@ -861,7 +849,7 @@ def restore_batch(
     history_idx: int, 
     restore_forward: bool,
     num_restore: int
-) -> tuple[Batch, AnnotationList]:
+) -> tuple[Batch, list[Annotation | None]]:
     # INFO: When restoring backwards it will try to restore num_restore samples
     # If there are not enough samples left to restore it will restore as much as it can
     # If it cant restore it will throw an error
@@ -920,10 +908,17 @@ def restore_batch(
             classes_sklearn=_get_sklearn_classes(estimator),
             progress=0 if restore_forward else len(emb_idxes) - 1
         ),
-        AnnotationList(annotations=annotations)
+        annotations
     )
 
 
 def file_buffer_to_inline_data_url(file_data_buffer: BytesIO, mime: str) -> str:
     b64_encoded_file_data = base64.b64encode(file_data_buffer.getvalue()).decode()
     return f"data:{mime};base64,{b64_encoded_file_data}"
+
+
+def camel_case_to_title(s: str) -> str:
+    # Split before capital letters that are followed by lowercase (normal word start)
+    # or when a lowercase is followed by a capital (e.g., "HTMLParser")
+    parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?![a-z])', s)
+    return " ".join(parts)

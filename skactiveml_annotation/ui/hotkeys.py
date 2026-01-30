@@ -94,8 +94,14 @@ def on_key_pressed_handler(
 
     normalized_hotkey = _key_event_to_canonical_str(key_event)
 
-    button_action_id = key_mapping.get(normalized_hotkey, None)
+    key_mapping = modal_mapping.get(modal, None)
+    if key_mapping is None:
+        logging.error(
+            f"Key mapping for modal {modal!r} on page {page!r} does not exist"
+        )
+        raise PreventUpdate
 
+    button_action_id = key_mapping.get(normalized_hotkey, None)
     if button_action_id is None:
         logging.debug15(f"Key Combo: {normalized_hotkey} is not bound. No Action is fired.")
         raise PreventUpdate

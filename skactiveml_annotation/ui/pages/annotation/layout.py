@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import cast
+from typing import Mapping, cast
 
 from dash_extensions import Keyboard
 import pydantic
@@ -14,7 +14,6 @@ from dash import (
     Input,
     Output,
     State,
-    callback_context,
     clientside_callback,
     ClientsideFunction,
     set_props,
@@ -37,7 +36,6 @@ from skactiveml_annotation.core.schema import (
     Batch,
     Annotation,
     AnnotationMetaData,
-    AnnotationList,
     SessionConfig,
     DISCARD_MARKER,
     MISSING_LABEL_MARKER,
@@ -53,6 +51,10 @@ from . import (
     data_presentation_settings,
 )
 from .label_setting_modal import SortBySetting
+
+ANNOTATIONS_ADAPTER = (
+    pydantic.TypeAdapter(list[Annotation | None])
+)
 
 register_page(
     __name__,
@@ -358,12 +360,62 @@ def init_annot_progress(store_data):
     }
 
 
+def _get_annotation_context(store_data: dict, batch: Batch):
+    start_time = datetime.fromisoformat(
+        store_data[StoreKey.DATA_PRESENT_TIMESTAMP.value]
+    )
+
+    idx = batch.progress
+
+    annotations_list = ANNOTATIONS_ADAPTER.validate_python(
+        store_data[StoreKey.ANNOTATIONS_STATE.value]
+    )
+
+    annotation = annotations_list[idx]
+    return idx, start_time, annotation, annotations_list
+
+
+def _init_or_update_annot_metadata(
+    old_annotation: Annotation | None, 
+    start_time: datetime,
+    end_time: datetime,
+    updated_label: str | None = None,
+) -> AnnotationMetaData:
+    delta_time = end_time - start_time
+
+    if old_annotation is None:
+        # New Annotation
+        first_view_time = start_time.isoformat()
+        total_view_duration = isodate.duration_isoformat(delta_time)
+        skip_intended_cnt = 0
+        last_edit_time=end_time.isoformat()
+    else:
+        # Sample was annotated before. Update the metadata
+        old_delta_time = isodate.parse_duration(old_annotation.meta_data.total_view_duration)
+        first_view_time = old_annotation.meta_data.first_view_time
+        total_view_duration = isodate.duration_isoformat(delta_time + old_delta_time)
+        skip_intended_cnt = old_annotation.meta_data.skip_intended_cnt
+
+        prev_label = old_annotation.label
+        if prev_label != updated_label:
+            last_edit_time = end_time.isoformat()
+        else:
+            last_edit_time = old_annotation.meta_data.last_edit_time
+
+    return AnnotationMetaData(
+        first_view_time=first_view_time,
+        total_view_duration=total_view_duration,
+        last_edit_time=last_edit_time,
+        skip_intended_cnt=skip_intended_cnt,
+    )
+
+
 @callback(
     Input(actions.CONFIRM.btn_id, 'n_clicks'),
     Input(actions.DISCARD.btn_id, 'n_clicks'),
     Input(actions.SKIP.btn_id, 'n_clicks'),
     State('session-store', 'data'),
-    State('label-radio', 'value'),
+    State('label-radio', 'value', allow_optional=True), # avoid initial id error
     State(ids.ANNOT_PROGRESS, 'data'),
     output=dict(
         store_data=Output('session-store', 'data', allow_duplicate=True),
@@ -378,81 +430,61 @@ def on_confirm(
     discard_click,
     skip_click,
     store_data,
-    value,
-    annot_data
+    value: str,
+    annot_data,
 ):
     end_time = datetime.now(timezone.utc)
 
-    if confirm_click is None and discard_click is None and skip_click is None:
+    if all(x is None for x in (confirm_click, discard_click, skip_click)):
         raise PreventUpdate
 
-    trigger_id = cast(dict, callback_context.triggered_id)['index']
+    try:
+        trigger_id = common.get_trigger_id()
+    except RuntimeError as e:
+        logging.error(e)
+        raise PreventUpdate
 
-    if trigger_id == 'skip':
-        label = MISSING_LABEL_MARKER
-    else:
-        label = value if trigger_id == 'confirm' else DISCARD_MARKER
+    label = (
+        MISSING_LABEL_MARKER if trigger_id == 'skip' else
+        value if trigger_id == 'confirm' else
+        DISCARD_MARKER
+    )
 
-    # Take timestamp when annotation was finished
-    start_time = datetime.fromisoformat(store_data[StoreKey.DATA_PRESENT_TIMESTAMP.value])
-    delta_time = end_time - start_time
-
-    # TODO compute view duration and add to existing view duration
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
-    idx = batch.progress
-    # TODO that seems wierd
-    annotations_list = AnnotationList.model_validate(store_data[StoreKey.ANNOTATIONS_STATE.value])
-    annotations = annotations_list.annotations
-    old_annotation = annotations[idx]
+    idx, start_time, annotation, annotations_list = _get_annotation_context(store_data, batch)
+    annot_metadata = _init_or_update_annot_metadata(annotation, start_time, end_time)
 
-    if old_annotation is None:
-        # New Annotation
-        first_view_time = start_time.isoformat()
-        total_view_duration = isodate.duration_isoformat(delta_time)
-        skip_intended_cnt = 0
-    else:
-        # Sample was annotated before update the annotation
-        # TODO only store last edit when there was a change?
-        old_delta_time = isodate.parse_duration(old_annotation.meta_data.total_view_duration)
-        delta_time += old_delta_time
-        first_view_time = old_annotation.meta_data.first_view_time
-        total_view_duration = isodate.duration_isoformat(delta_time)
-        skip_intended_cnt = old_annotation.meta_data.skip_intended_cnt
-
-    logging.debug15("TRIGGER ID", trigger_id)
-
-    # Increment skip counter if the user clicked skip
-    if trigger_id == "skip" :
-        skip_intended_cnt += 1
+    if trigger_id == "skip":
+        annot_metadata.skip_intended_cnt += 1
 
     annotation = Annotation(
         embedding_idx=batch.emb_indices[idx],
         label=label,
-        meta_data=AnnotationMetaData(
-            first_view_time=first_view_time,
-            total_view_duration=total_view_duration,
-            last_edit_time=end_time.isoformat(),
-            skip_intended_cnt=skip_intended_cnt
-        )
+        meta_data=annot_metadata,
     )
+    annotations_list[idx] = annotation
 
-    # TODO write helper for this in api?
-    annotations[idx] = annotation
+    jsonable = ANNOTATIONS_ADAPTER.dump_python(
+        annotations_list,
+        mode="json"
+    )
+    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
 
     batch.advance(step=1)
 
     # Override existing batch
     # TODO serialize here?
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = annotations_list.model_dump()
 
     if batch.is_completed():
+        logging.info("Batch is completed")
+
         dataset_id = store_data[StoreKey.DATASET_SELECTION.value]
         embedding_id = store_data[StoreKey.EMBEDDING_SELECTION.value]
 
         # All samples in the batch should be annotated by now
-        annotations = cast(list[Annotation], annotations)
-        api.completed_batch(dataset_id, embedding_id, annotations, batch)
+        annotations = cast(list[Annotation], annotations_list)
+        api.update_json_annotations(dataset_id, embedding_id, annotations, batch)
 
         # TODO: Could improve performance by adding how many have been added (not skipped in this batch)
         num_annotated = api.get_num_annotated_not_skipped(dataset_id)
@@ -521,11 +553,14 @@ def on_ui_update(
     data_type = activeml_cfg.dataset.data_type.instantiate()
 
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
-    annotations_list = AnnotationList.model_validate(store_data[StoreKey.ANNOTATIONS_STATE.value])
+
+    annotations_list = ANNOTATIONS_ADAPTER.validate_python(
+        store_data[StoreKey.ANNOTATIONS_STATE.value]
+    )
     
     idx = batch.progress
     embedding_idx = batch.emb_indices[idx]
-    annotation = annotations_list.annotations[idx]
+    annotation = annotations_list[idx]
 
     human_data_path = Path(
         api.get_one_file_path(
@@ -626,27 +661,22 @@ def on_next_batch(
 
     if num_restorable >= batch_size:
         logging.debug15("No Active ML needed")
-        # No Active ML needed just restore
-        # Batch size many samples
-        # api.restore_forward (batch_size)
-        # TODO: refactor restore batch so it only restores as much as it can?
+        # No Active ML needed just restore Batch size many samples
         batch, annotations_list = api.restore_batch(activeml_cfg, global_history_idx, True, batch_size)
 
-        # INFO: This assumed the idx is on the last of the previous batch
+        # This assumes the idx is on the last of the previous batch
         api.increment_global_history_idx(dataset_id, 1)
-        # api.increment_global_history_idx(dataset_id, batch_size)
 
     else:
         logging.debug15("Must use active ml")
-        # Active learning needed. 
-        # But first restore what is left to restore
+        # Active learning needed. But first restore what is left to restore
         if num_restorable > 0:
             logging.debug15(f"Can still restore {num_restorable} samples before Active ML")
             batch_one, annotations_list_one = api.restore_batch(activeml_cfg, global_history_idx, True, num_restorable)
 
             emb_indices_one = batch_one.emb_indices
             class_probas_one = batch_one.class_probas
-            annotations_one = annotations_list_one.annotations
+            annotations_one = annotations_list_one
             api.increment_global_history_idx(dataset_id, 1)
         else:
             emb_indices_one = []
@@ -662,7 +692,7 @@ def on_next_batch(
 
         X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
 
-        # INFO: Remove samples from pool that have been restored. To avoid possible duplication
+        # Remove samples from pool that have been restored. To avoid possible duplication
         batch_two, annotations_list_two = api.request_query(activeml_cfg, session_cfg, X, emb_indices_one)
 
         logging.debug15("queried batch emb indices:")
@@ -685,12 +715,17 @@ def on_next_batch(
             progress=0
         )
 
-        annotations_list = AnnotationList(
-            annotations=annotations_one + annotations_list_two.annotations
-        )
+        annotations_list = annotations_one + annotations_list_two
 
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = annotations_list.model_dump()
+
+    jsonable = ANNOTATIONS_ADAPTER.dump_python(
+        annotations_list,
+        mode="json"
+    )
+
+    # store_data[StoreKey.ANNOTATIONS_STATE.value] = annotations_list.model_dump()
+    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
 
     return dict(
         store_data=store_data,
@@ -726,11 +761,12 @@ def on_skip_batch(
     batch = Batch.from_json(batch_json)
 
     logging.debug15(session_data[StoreKey.ANNOTATIONS_STATE.value])
-    annotations_list = AnnotationList.model_validate(session_data[StoreKey.ANNOTATIONS_STATE.value])
-    annotations = annotations_list.annotations
 
-    # TODO this should not be necessary
-    api.save_partial_annotations(batch, dataset_id, embedding_id, annotations)
+    annotations_list = ANNOTATIONS_ADAPTER.validate_python(
+        session_data[StoreKey.ANNOTATIONS_STATE.value]
+    )
+
+    api.save_partial_annotations(batch, dataset_id, embedding_id, annotations_list)
     annot_progress[AnnotProgress.PROGRESS.value] = api.get_num_annotated_not_skipped(dataset_id)
 
     return dict(
@@ -756,8 +792,8 @@ def on_skip_batch(
     ),
     prevent_initial_call=True
 )
-def on_back_clicked(
-    clicks,
+def on_back(
+    clicks: None | int,
     store_data,
     batch_size, # TODO input these are UI inputs
     annot_progress,
@@ -770,55 +806,38 @@ def on_back_clicked(
     logging.debug15("\non back click callback")
     # TODO only store last edit when there was a change?
 
-    # TODO repeated code create helper for this.
-    start_time = datetime.fromisoformat(store_data[StoreKey.DATA_PRESENT_TIMESTAMP.value])
-    delta_time = end_time - start_time
-
-    # TODO compute view duration and add to existing view duration
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
-    idx = batch.progress
-    # TODO that seems wierd
+    idx, start_time, annotation, annotations_list = _get_annotation_context(store_data, batch)
+    annot_metadata = _init_or_update_annot_metadata(annotation, start_time, end_time)
 
-    annotations_list = AnnotationList.model_validate(store_data[StoreKey.ANNOTATIONS_STATE.value])
-    annotations = annotations_list.annotations
-    old_annotation = annotations[idx]
-
-    if old_annotation is None:
-        # TODO should not happen right?
-        logging.debug15("Does this happen?")
-        first_view_time = start_time.isoformat()
-        total_view_duration = isodate.duration_isoformat(delta_time)
-        label = MISSING_LABEL_MARKER
-    else:
-        # Sample was annotated before update the annotation
-        # TODO only store last edit when there was a change?
-        old_delta_time = isodate.parse_duration(old_annotation.meta_data.total_view_duration)
-        delta_time += old_delta_time
-        first_view_time = old_annotation.meta_data.first_view_time
-        total_view_duration = isodate.duration_isoformat(delta_time)
-        label = old_annotation.label
+    old_label = (
+        MISSING_LABEL_MARKER if annotation is None else 
+        annotation.label
+    )
 
     annotation = Annotation(
         embedding_idx=batch.emb_indices[idx],
-        label=label,
-        meta_data=AnnotationMetaData(
-            first_view_time=first_view_time,
-            total_view_duration=total_view_duration,
-            last_edit_time=end_time.isoformat(),
-        )
+        label=old_label,
+        meta_data=annot_metadata,
     )
 
-    # TODO write helper for this in api?
-    annotations[idx] = annotation
+    annotations_list[idx] = annotation
 
+    jsonable = ANNOTATIONS_ADAPTER.dump_python(
+        annotations_list,
+        mode="json"
+    )
+    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
+
+
+    # TODO: Make a helper for this?
     if batch.progress == 0:
-        # TODO write helper for that
         logging.debug15("Have to get last batch to be able to go back.")
         # TODO Serialize new Annotations made in current batch
         dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
         embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
         file_paths = api.get_file_paths(dataset_id, embedding_id, batch.emb_indices)
-        _ = api.update_annotations(dataset_id, file_paths, annotations)
+        _ = api.update_annotations(dataset_id, file_paths, annotations_list)
 
         # TODO this step should be done in the serialize and deserialize methods
         activeml_cfg = common.compose_from_state(store_data)
@@ -829,7 +848,7 @@ def on_back_clicked(
             batch, annotations_list = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
         except RuntimeError:
             logging.warning("Raise PreventUpdate. Cannot go back further. No Annotations left")
-            # INFO: Have to do ui_trigger so the buttons are enabled
+            # Have to do ui_trigger so the buttons are enabled
             return dict(
                 ui_trigger=True,
                 session_data=dash.no_update,
@@ -837,19 +856,16 @@ def on_back_clicked(
                 search_text=dash.no_update,
                 focus_trigger=dash.no_update,
             )
-            # raise PreventUpdate
 
-        # INFO: Update the global history idx
-        api.increment_global_history_idx(dataset_id, - len(batch))
+        # Update the global history idx
+        api.increment_global_history_idx(dataset_id, -len(batch))
         logging.debug15(f"info decrementing global idx to: {api.get_global_history_idx(dataset_id)}")
-        # TODO should annotations be decreased when going back?
-        # Decrease amount of annotations
+        # Annotations can decrease if the annotation of a sample was change to SKIP
         annot_progress[AnnotProgress.PROGRESS.value] = api.get_num_annotated_not_skipped(dataset_id)
     else:
          batch.advance(step= -1)
 
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = annotations_list.model_dump()
     return dict(
         ui_trigger=True,
         session_data=store_data,
@@ -870,7 +886,7 @@ def on_back_clicked(
 )
 def on_annot_progress(
     trigger,
-    annot_data # TODO rename this is just the UI value that is updated via this
+    annot_data,
 ):
     if trigger is None:
         raise PreventUpdate
@@ -912,7 +928,6 @@ def on_annot_start_timestamp(
     if trigger is None:
         raise PreventUpdate
 
-    # TODO Problem that runs before ui rendering is complete.
     # TODO: this will be utc aware time of the server and not user
     now_str = datetime.now(timezone.utc).isoformat()
 

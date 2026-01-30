@@ -141,14 +141,6 @@ def layout(**kwargs: object):
     )
 
 
-# TODO:
-def _camel_case_to_title(s: str) -> str:
-    # Split before capital letters that are followed by lowercase (normal word start)
-    # or when a lowercase is followed by a capital (e.g., "HTMLParser")
-    import re
-    parts = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?![a-z])', s)
-    return " ".join(parts)
-
 @callback(
     Input("hotkey-ui-trigger", "data"),
     State("keymapping-cfg", "data"),
@@ -172,7 +164,7 @@ def update_hotkey_page(
                         [
                             dmc.Stack(
                                 [
-                                    dmc.Text(_camel_case_to_title(modal), size="md") if modal != "Main" else None,
+                                    dmc.Text(camel_case_to_title(modal), size="md") if modal != "Main" else None,
                                     
                                     dmc.Stack(
                                         [

@@ -42,17 +42,6 @@ def create_image_display(
         # reducing_gap=4  # Only in effect when downscaling
     )
 
-    # image = image.filter(ImageFilter.UnsharpMask(
-    #     radius=200,  # Effects the size of the edges to be enhanced. How wide the edge rims become
-    #                   # Smaller Radius enhances smaller-scale detail
-    #     percent=100,  # Amount is listed as a percentage and controlls how much constrast is added at edges
-    #     threshold=3  # Controls how far adjacent tonal values have to be before the filter does anything
-    #     )
-    # )
-    # image = ImageEnhance.Sharpness(image).enhance(50)
-
-    # image.show()
-
     # Account for screen dpr to prevent the browser from resizing the image again to avoid artifacts.
     w = int(w / dpr)
     h = int(h / dpr)

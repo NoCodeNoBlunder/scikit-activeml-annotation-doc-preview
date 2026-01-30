@@ -220,9 +220,6 @@ class Annotation(pydantic.BaseModel):
     meta_data: AnnotationMetaData
 
 
-class AnnotationList(pydantic.BaseModel):
-    annotations: list[Annotation | None]
-
 class HistoryIdx(pydantic.BaseModel):
     idx: int
 

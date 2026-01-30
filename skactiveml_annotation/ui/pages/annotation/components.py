@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 import dash
+from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 
 from skactiveml_annotation.core.data_display_model import DataDisplaySetting
