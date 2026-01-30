@@ -484,6 +484,7 @@ def on_confirm(
     State(ids.ADDED_CLASS_NAME, 'data'),
     State(ids.LABEL_SETTING_SHOW_PROBAS, 'checked'),
     State(ids.LABEL_SETTING_SORTBY, 'value'),
+    State(ids.ALL_ANNOTATION_BTNS, 'id'),
     output=dict(
         label_container=Output(ids.LABELS_CONTAINER, 'children'),
         show_container=Output(ids.DATA_DISPLAY_CONTAINER, 'children'),
@@ -511,6 +512,7 @@ def on_ui_update(
     # Label settings
     show_probas: bool,  # TODO this is confusing
     sort_by: str,
+    annot_button_ids: list,
 ):
     if ui_trigger is None and browser_dpr is None:
         raise PreventUpdate
@@ -559,8 +561,8 @@ def on_ui_update(
         data_width=w,
         data_height=h,
         annot_start_time_trigger=True,
-        disable_all_action_buttons=[False] * 4, # TODO: hardcoded
-        # TODO: I should also clear the Input here
+        was_class_added=False,
+        disable_all_action_buttons=[False] * len(annot_button_ids),
         focus_trigger=ids.LABEL_SEARCH_INPUT,
         added_class_name=None,
     )
