@@ -13,7 +13,6 @@ try:
         FashionMNIST
     )
 except ImportError as e:
-    # TODO: Add better error msg
     logging.error(e)
     sys.exit()
 
