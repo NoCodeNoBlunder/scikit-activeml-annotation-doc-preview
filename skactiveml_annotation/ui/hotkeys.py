@@ -23,8 +23,15 @@ from skactiveml_annotation.util import logging
 MOD_KEY_MAPPING: Final = {"altKey": "Alt", "ctrlKey": "Control",
                           "shiftKey": "Shift", "metaKey": "Meta"}
 
-# TODO: Keys missing
-VALID_SPECIAL_KEYS = ("Unbound", "Enter", "Backspace") + tuple(MOD_KEY_MAPPING.values())
+VALID_SPECIAL_KEYS: Final = (
+    "Unbound",
+    "Enter",
+    "Backspace",
+    "CapsLock",
+    "Tab",
+    " ", # Space
+    "Escape",
+) + tuple(MOD_KEY_MAPPING.values())
 
 @dataclass
 class ButtonAction:
