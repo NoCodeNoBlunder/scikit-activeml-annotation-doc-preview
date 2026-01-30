@@ -191,17 +191,14 @@ def request_query(
 
     query_samples = X[query_indices]
 
-    # TODO: clf could not have predict_proba
-
-    # From doc prodict Proba always returns 
-    # Probabilites P of : array-like of shape (n_samples, classes)
-    # get turned into list[list[float]] by to_list()
-    class_probas = cast(
-        np.ndarray[tuple[int, int], np.dtype[np.float32]],
-        # npt.NDArray[np.float64], 
-        clf.predict_proba(query_samples)
-    )
-    class_probas_list = cast(list[list[float]], class_probas.tolist())
+    try:
+        class_probas = _safe_predict_proba(clf, query_samples)
+    except Exception as e:
+        logging.warning(
+            f"No class probabilities can be displayed."
+            f"predict_proba failed with error error: {e}. "
+        )
+        class_probas = None
 
     classes_sklearn = _get_sklearn_classes(clf)
 
@@ -218,12 +215,42 @@ def request_query(
     return (
         Batch(
             emb_indices=query_indices,
-            class_probas=class_probas_list,
+            class_probas=class_probas,
             classes_sklearn=classes_sklearn,
             progress=0,
         ),
         annotations_list
     )
+
+
+def _safe_predict_proba(
+    clf: SkactivemlClassifier,
+    query_samples: np.ndarray,
+) -> list[list[float]]:
+    """
+    Call predict_proba on a classifier.
+
+    Raises:
+        AttributeError: if predict_proba is not supported.
+        RuntimeError: if predict_proba fails at runtime.
+    """
+    if not hasattr(clf, "predict_proba"):
+        raise AttributeError(
+            f"{clf.__class__.__name__} does not support predict_proba"
+        )
+
+    try:
+        class_probas = clf.predict_proba(query_samples)
+    except Exception as e:
+        raise RuntimeError(
+            f"predict_proba failed for {clf.__class__.__name__}"
+        ) from e
+
+    # scikit-learn guarantees predict_proba returns an array-like of shape
+    # (n_samples, n_classes). Calling tolist() therefore produces
+    # list[list[float]].
+    return class_probas.tolist()
+
 
 def compute_embeddings(
     activeml_cfg: ActiveMlConfig,
