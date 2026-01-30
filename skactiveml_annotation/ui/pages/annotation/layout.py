@@ -9,7 +9,6 @@ import isodate
 import dash
 from dash import (
     dcc,
-    no_update,
     register_page,
     callback,
     Input,
@@ -370,6 +369,7 @@ def init_annot_progress(store_data):
         store_data=Output('session-store', 'data', allow_duplicate=True),
         annot_data=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
         search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
+        focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
     ),
     prevent_initial_call=True
 )
@@ -470,8 +470,8 @@ def on_confirm(
     return dict(
         store_data=store_data,
         annot_data=annot_data,
-        # TODO: Reset search_text also when going back
         search_text='',
+        focus_trigger=ids.LABEL_SEARCH_INPUT,
     )
 
 
@@ -705,7 +705,9 @@ def on_next_batch(
     output=dict(
         query_trigger=Output(ids.QUERY_TRIGGER, 'data'),
         session_data=Output('session-store', 'data', allow_duplicate=True),
-        annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True)
+        annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
+        search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
+        focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
     ),
     prevent_initial_call=True
 )
@@ -734,7 +736,9 @@ def on_skip_batch(
     return dict(
         query_trigger=True,
         session_data=session_data,
-        annot_progress=annot_progress
+        annot_progress=annot_progress,
+        search_text='',
+        focus_trigger=ids.LABEL_SEARCH_INPUT,
     )
 
 
@@ -746,7 +750,9 @@ def on_skip_batch(
     output=dict(
         session_data=Output('session-store', 'data'),
         ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
-        annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True)
+        annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
+        search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
+        focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
     ),
     prevent_initial_call=True
 )
@@ -827,7 +833,9 @@ def on_back_clicked(
             return dict(
                 ui_trigger=True,
                 session_data=dash.no_update,
-                annot_progress=dash.no_update
+                annot_progress=dash.no_update,
+                search_text=dash.no_update,
+                focus_trigger=dash.no_update,
             )
             # raise PreventUpdate
 
@@ -845,7 +853,9 @@ def on_back_clicked(
     return dict(
         ui_trigger=True,
         session_data=store_data,
-        annot_progress=annot_progress
+        annot_progress=annot_progress,
+        search_text='',
+        focus_trigger=ids.LABEL_SEARCH_INPUT,
     )
 
 
