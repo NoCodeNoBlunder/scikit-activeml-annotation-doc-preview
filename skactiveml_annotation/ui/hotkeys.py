@@ -157,26 +157,7 @@ def normalize_hotkey_str(key_combo: str) -> str:
         return key + "+" + "+".join(mod_keys)
     return key
 
-
 # --- Callbacks ---
-# TODO: where to put these callbacks?
-clientside_callback(
-    ClientsideFunction(namespace='clientside', function_name='clickButtonWithId'),
-    Input("click-btn-trigger", "data"),
-)
-
-clientside_callback(
-    ClientsideFunction(namespace='clientside', function_name='focusElementWithId'),
-    Input("focus-el-trigger", "data"),
-)
-
-# INFO: Callback to go back to the previous page
-clientside_callback(
-    ClientsideFunction(namespace='clientside', function_name='goToLastPage'),
-    Input("back-hotkeys-btn", "n_clicks"),
-)
-
-
 @callback(
     Input("url_home_init", "pathname"),
     State("keymapping-cfg", "data"),

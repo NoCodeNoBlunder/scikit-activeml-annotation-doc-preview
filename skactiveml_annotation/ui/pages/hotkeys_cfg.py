@@ -17,6 +17,7 @@ import dash_mantine_components as dmc
 
 from dash_extensions import Keyboard
 
+from skactiveml_annotation.core.api import camel_case_to_title
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.hotkeys import (
     ButtonAction,
@@ -300,4 +301,22 @@ def reset_hotkeys_to_default(
     return dict(
         hotkey_cfg=HotkeyConfig().model_dump(),
         ui_trigger=dict(data=True)
+    )
+
+
+@callback(
+    Input('back-hotkeys-btn', 'n_clicks'),
+    output=dict(
+        go_last_page_trigger=Output("go-last-page-trigger", "data"),
+    ),
+    prevent_initial_call=True
+)
+def on_back(
+    clicks: int | None
+):
+    if clicks is None:
+        raise PreventUpdate
+
+    return dict(
+        go_last_page_trigger=True,
     )

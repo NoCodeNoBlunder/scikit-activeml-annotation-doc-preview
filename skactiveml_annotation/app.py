@@ -16,75 +16,88 @@ import dash_mantine_components as dmc
 import dash_loading_spinners
 
 
+from skactiveml_annotation.ui import clientside_callbacks
 from skactiveml_annotation.ui.components import navbar
 import skactiveml_annotation.paths as sap
 
 cache = diskcache.Cache(sap.BACKGROUND_CALLBACK_CACHE_PATH)
 background_callback_manager = DiskcacheManager(cache)
 
-app = Dash(
-    __package__,
-    use_pages=True,  # Use dash page feature
-    pages_folder=str(sap.PAGES_PATH),
-    external_stylesheets=[dmc.theme.DEFAULT_THEME] + dmc.styles.ALL,  # TODO only use what is needed.
-    # Allows to register callbacks on components that will be created by other callbacks,
-    # and are therefore not in the initial layout.
-    suppress_callback_exceptions=True,
-    prevent_initial_callbacks=True,
-    assets_folder=str(sap.ASSETS_PATH),
-    title="scikit-activeml-annotation",
-    background_callback_manager=background_callback_manager,
-    update_title=''
-)
 
-app.layout = (
-    dmc.MantineProvider(
-        dmc.AppShell(
-            [
-                # Data stored across all pages
-                dcc.Store('browser-data'),
-                dcc.Store('session-store', storage_type='session'),
-                dcc.Store("click-btn-trigger"),
-                dcc.Store("focus-el-trigger"),
+def create_app() -> Dash:
+    app = Dash(
+        __package__,
+        use_pages=True,  # Use dash page feature
+        pages_folder=str(sap.PAGES_PATH),
+        external_stylesheets=[dmc.theme.DEFAULT_THEME] + dmc.styles.ALL,
+        # Allows to register callbacks on components that will be created by other callbacks,
+        # and are therefore not in the initial layout.
+        suppress_callback_exceptions=True,
+        prevent_initial_callbacks=True,
+        assets_folder=str(sap.ASSETS_PATH),
+        title="scikit-activeml-annotation",
+        background_callback_manager=background_callback_manager,
+        update_title=''
+    )
 
-                # Hotkeys per Page
-                dcc.Store("keymapping-cfg", storage_type="local"),
+    app.layout = layout
+    
+    clientside_callbacks.register()
 
-                navbar.create_navbar(),
-                dmc.AppShellMain(
-                    [
-                        # TODO only use spinnger on home screen. It does not seem to work for other screen.
-                        app_spinner_container := html.Div(
-                            loading_page_spinner := dash_loading_spinners.Pacman(
-                                fullscreen=True,
-                                id='loading_page_spinner'
+    return app
+
+
+def layout(**kwargs):
+    _ = kwargs
+    return (
+        dmc.MantineProvider(
+            dmc.AppShell(
+                [
+                    # Data stored across all pages
+                    dcc.Store('browser-data'),
+                    dcc.Store('session-store', storage_type='session'),
+
+                    # Triggers
+                    dcc.Store("click-btn-trigger"),
+                    dcc.Store("focus-el-trigger"),
+                    dcc.Store("go-last-page-trigger"),
+
+                    # Hotkeys per Page
+                    dcc.Store("keymapping-cfg", storage_type="local"),
+
+                    navbar.create_navbar(),
+                    dmc.AppShellMain(
+                        [
+                            html.Div(
+                                dash_loading_spinners.Pacman(
+                                    fullscreen=True,
+                                ),
+                                id='app_spinner_container'
                             ),
-                            id='app_spinner_container'
-                        ),
 
-                        page_content_container := dmc.Container(
-                            dash.page_container,
-                            id='page_content_container',
-                            fluid=True,
-                            style={'padding': 0}
-                        )
-                    ],
-                    style={
-                        # 'border': '5px dashed red',
-                        # 'height': '80%'
-                    },
-                )
-            ],
-            header={'height': 50},
+                            dmc.Container(
+                                dash.page_container,
+                                id='page_content_container',
+                                fluid=True,
+                                style={'padding': 0}
+                            )
+                        ],
+                        style={
+                            # 'border': '5px dashed red',
+                            # 'height': '80%'
+                        },
+                    )
+                ],
+                header={'height': 50},
+            )
         )
     )
-)
 
 
 @callback(
-    Output(app_spinner_container, 'children'),
-    Input(page_content_container, 'loading_state'),
-    State(app_spinner_container, 'children'),
+    Output("app_spinner_container", 'children'),
+    Input("page_content_container", 'loading_state'),
+    State("app_spinner_container", 'children'),
 )
 def hide_page_loading_spinner(
     _,
