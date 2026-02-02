@@ -105,7 +105,6 @@ def _instantiate(cfg: pydantic.BaseModel, expected_type: type[T], **kwargs: Any)
     try:
         cfg_dict = cfg.model_dump(by_alias=True)
         x = hydra.utils.instantiate(cfg_dict, **kwargs)
-        # TODO: instantiate can fail
     except Exception as e:
         logging.error(
             "\n".join([

@@ -143,10 +143,7 @@ def layout(**kwargs):
                                             dcc.Loading(
                                                 dmc.Box(
                                                     id=ids.DATA_DISPLAY_CONTAINER,
-                                                    # TODO why did I fix the width and heigh here?
                                                     mih=15,
-                                                    # w='250px',
-                                                    # h='250px',
                                                     my=10,
                                                     # style=dict(border='4px dotted red')
                                                 ),
@@ -415,7 +412,7 @@ def _init_or_update_annot_metadata(
     Input(actions.DISCARD.btn_id, 'n_clicks'),
     Input(actions.SKIP.btn_id, 'n_clicks'),
     State('session-store', 'data'),
-    State('label-radio', 'value', allow_optional=True), # avoid initial id error
+    State('label-radio', 'value'),
     State(ids.ANNOT_PROGRESS, 'data'),
     output=dict(
         store_data=Output('session-store', 'data', allow_duplicate=True),
@@ -426,9 +423,9 @@ def _init_or_update_annot_metadata(
     prevent_initial_call=True
 )
 def on_confirm(
-    confirm_click,  # TODO use patter matching instead.
-    discard_click,
-    skip_click,
+    confirm_click: int | None,
+    discard_click: int | None,
+    skip_click: int | None,
     store_data,
     value: str,
     annot_data,
@@ -473,7 +470,6 @@ def on_confirm(
     batch.advance(step=1)
 
     # Override existing batch
-    # TODO serialize here?
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
 
     if batch.is_completed():
@@ -486,7 +482,6 @@ def on_confirm(
         annotations = cast(list[Annotation], annotations_list)
         api.update_json_annotations(dataset_id, embedding_id, annotations, batch)
 
-        # TODO: Could improve performance by adding how many have been added (not skipped in this batch)
         num_annotated = api.get_num_annotated_not_skipped(dataset_id)
 
         if num_annotated == annot_data[AnnotProgress.TOTAL_NUM.value]:
@@ -656,7 +651,6 @@ def on_next_batch(
         logging.debug15("Initializing global history idx to", global_history_idx)
         api.set_global_history_idx(dataset_id, global_history_idx)
 
-    # TODO:
     num_restorable = max(0, history_size - (global_history_idx + 1))
 
     if num_restorable >= batch_size:
@@ -697,9 +691,6 @@ def on_next_batch(
 
         logging.debug15("queried batch emb indices:")
         logging.debug15(batch_two.emb_indices)
-
-        # TODO: Determine how many samples have been previously skipped
-        # To align global idx correctly
 
         class_probas_combined = (
             class_probas_one + batch_two.class_probas
@@ -804,7 +795,6 @@ def on_back(
         raise PreventUpdate
 
     logging.debug15("\non back click callback")
-    # TODO only store last edit when there was a change?
 
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
     idx, start_time, annotation, annotations_list = _get_annotation_context(store_data, batch)
