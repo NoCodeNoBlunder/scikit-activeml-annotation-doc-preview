@@ -309,8 +309,11 @@ def update_json_annotations(
     logging.debug15("Increment history_idx to: %s", get_global_history_idx(dataset_id))
 
 
-def get_num_annotated_not_skipped(dataset_id: str) -> int:
+def get_num_annotated(dataset_id: str, exclude_missing: bool = False) -> int:
     annotations = _deserialize_annotations(dataset_id)
+
+    if not exclude_missing:
+        return len(annotations)
 
     return sum(
         (
@@ -319,10 +322,6 @@ def get_num_annotated_not_skipped(dataset_id: str) -> int:
             if annot.label != MISSING_LABEL_MARKER
         )
     )
-
-
-def get_num_annotated(dataset_id: str) -> int:
-    return len(_deserialize_annotations(dataset_id))
 
 
 def get_total_num_samples(dataset_id: str, embedding_id: str) -> int:

@@ -16,14 +16,3 @@ class StoreKey(Enum):
     BATCH_STATE = auto()
     ANNOTATIONS_STATE = auto()
     DATA_PRESENT_TIMESTAMP = auto()
-
-
-# TODO instead of this use a pydantic model
-# TODO: Unclear that this is only the annotation progress used for the ui display
-class AnnotProgress(Enum):
-    @staticmethod
-    def _generate_next_value_(name: str, start: int, count: int, last_values: list[Any]):
-        return name
-
-    PROGRESS = auto()
-    TOTAL_NUM = auto()

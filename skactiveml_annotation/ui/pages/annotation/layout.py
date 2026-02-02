@@ -33,6 +33,7 @@ from skactiveml_annotation.core import api
 from skactiveml_annotation.util import logging
 
 from skactiveml_annotation.core.schema import (
+    AnnotationProgress,
     Batch,
     Annotation,
     AnnotationMetaData,
@@ -40,7 +41,7 @@ from skactiveml_annotation.core.schema import (
     DISCARD_MARKER,
     MISSING_LABEL_MARKER,
 )
-from skactiveml_annotation.ui.storekey import StoreKey, AnnotProgress
+from skactiveml_annotation.ui.storekey import StoreKey
 
 from . import (
     ids,
@@ -347,14 +348,15 @@ def init(
         # data_presentation_apply_children=data_presentation_settings.create_apply_button(data_type)
     )
 
+
 def init_annot_progress(store_data):
     dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
     embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
 
-    return {
-        AnnotProgress.PROGRESS.value: api.get_num_annotated(dataset_id),
-        AnnotProgress.TOTAL_NUM.value: api.get_total_num_samples(dataset_id, embedding_id)
-    }
+    return AnnotationProgress(
+        num_annotated=api.get_num_annotated(dataset_id, exclude_missing=True),
+        num_samples=api.get_total_num_samples(dataset_id, embedding_id)
+    ).model_dump()
 
 
 def _get_annotation_context(store_data: dict, batch: Batch):
@@ -472,6 +474,8 @@ def on_confirm(
     # Override existing batch
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
 
+    annot_progress = AnnotationProgress.model_validate(annot_data)
+
     if batch.is_completed():
         logging.info("Batch is completed")
 
@@ -482,13 +486,13 @@ def on_confirm(
         annotations = cast(list[Annotation], annotations_list)
         api.update_json_annotations(dataset_id, embedding_id, annotations, batch)
 
-        num_annotated = api.get_num_annotated_not_skipped(dataset_id)
+        num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
 
-        if num_annotated == annot_data[AnnotProgress.TOTAL_NUM.value]:
+        if num_annotated == annot_progress.num_samples:
             logging.info("All Samples Annotated!")
             raise PreventUpdate
 
-        annot_data[AnnotProgress.PROGRESS.value] = num_annotated
+        annot_progress.num_annotated=num_annotated
 
         set_props(ids.QUERY_TRIGGER, dict(data=True))
     else:
@@ -496,7 +500,7 @@ def on_confirm(
 
     return dict(
         store_data=store_data,
-        annot_data=annot_data,
+        annot_data=annot_progress.model_dump(),
         search_text='',
         focus_trigger=ids.LABEL_SEARCH_INPUT,
     )
@@ -758,12 +762,14 @@ def on_skip_batch(
     )
 
     api.save_partial_annotations(batch, dataset_id, embedding_id, annotations_list)
-    annot_progress[AnnotProgress.PROGRESS.value] = api.get_num_annotated_not_skipped(dataset_id)
+
+    annot_progress = AnnotationProgress.model_validate(annot_progress)
+    annot_progress.num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
 
     return dict(
         query_trigger=True,
         session_data=session_data,
-        annot_progress=annot_progress,
+        annot_progress=annot_progress.model_dump(),
         search_text='',
         focus_trigger=ids.LABEL_SEARCH_INPUT,
     )
@@ -850,8 +856,10 @@ def on_back(
         # Update the global history idx
         api.increment_global_history_idx(dataset_id, -len(batch))
         logging.debug15(f"info decrementing global idx to: {api.get_global_history_idx(dataset_id)}")
-        # Annotations can decrease if the annotation of a sample was change to SKIP
-        annot_progress[AnnotProgress.PROGRESS.value] = api.get_num_annotated_not_skipped(dataset_id)
+
+        # Annotations can decrease if a previous annotation of was changed to SKIP
+        annot_progress = AnnotationProgress.model_validate(annot_progress)
+        annot_progress.num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
     else:
          batch.advance(step= -1)
 
@@ -859,7 +867,7 @@ def on_back(
     return dict(
         ui_trigger=True,
         session_data=store_data,
-        annot_progress=annot_progress,
+        annot_progress=annot_progress.model_dump(),
         search_text='',
         focus_trigger=ids.LABEL_SEARCH_INPUT,
     )
@@ -869,21 +877,23 @@ def on_back(
     Input(ids.UI_TRIGGER, 'data'),
     State(ids.ANNOT_PROGRESS, 'data'),
     output=dict(
-        annot_progress=Output(ids.ANNOT_PROGRESS_TEXT, 'value'),
+        num_annotated=Output(ids.ANNOT_PROGRESS_TEXT, 'value'),
         num_samples=Output(ids.NUM_SAMPLES_TEXT, 'value'),
     ),
     prevent_initial_call=True
 )
-def on_annot_progress(
+def on_annot_progress_change(
     trigger,
     annot_data,
 ):
     if trigger is None:
         raise PreventUpdate
 
+    annot_progress = AnnotationProgress.model_validate(annot_data)
+
     return dict(
-        annot_progress=annot_data.get(AnnotProgress.PROGRESS.value),
-        num_samples=annot_data.get(AnnotProgress.TOTAL_NUM.value)
+        num_annotated=annot_progress.num_annotated,
+        num_samples=annot_progress.num_samples,
     )
 
 
