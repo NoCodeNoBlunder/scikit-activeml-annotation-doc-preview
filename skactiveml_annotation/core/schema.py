@@ -162,7 +162,6 @@ class Batch:
     def progress(self) -> int:
         return self._progress
 
-    # TODO maybe its cleaner if this returns a boolean is completed?
     def advance(self, step: int):
         self._progress += step
 

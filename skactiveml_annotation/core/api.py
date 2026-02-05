@@ -197,7 +197,6 @@ def request_query(
     emb_indices = emb_indices.astype(int).tolist()
 
     # Possibly restore annotations that have been previously skipped
-    # TODO: Create a helper function for this.
     file_paths = get_file_paths(cfg.dataset.id, cfg.embedding.id, emb_indices)
     annotations_data = _deserialize_annotations(cfg.dataset.id)
     # file_paths are the keys
@@ -275,8 +274,8 @@ def compute_embeddings(
 
 @lru_cache(maxsize=1)
 def load_embeddings(
-        dataset_id: str,
-        embedding_id: str,
+    dataset_id: str,
+    embedding_id: str,
 ) -> np.ndarray:
     cache_key = f"{dataset_id}_{embedding_id}"
     cache_path = sap.EMBEDDINGS_CACHE_PATH / f"{cache_key}.npz"
@@ -347,7 +346,6 @@ def auto_annotate(
 
     # Fit classifier on samples not marked as discarded
     X_cand, y_cand, _ = _filter_discarded_samples(X, y)
-    # TODO clf or estimator?
     clf = estimator
     clf.fit(X_cand, y_cand)
 
@@ -529,7 +527,6 @@ def _insert_class_prob_column(probas: list[list[float]], idx: int) -> list[list[
     ]
 
 
-# TODO put this stuff into utils package?
 def _load_or_init_annotations(
     X: np.ndarray,
     dataset_cfg: DatasetConfig,
@@ -541,11 +538,8 @@ def _load_or_init_annotations(
         for s in dataset_cfg.classes + [DISCARD_MARKER, MISSING_LABEL_MARKER]
     )
 
-    # TODO for performance maybe it can be better to use ascci string with dtype=S
-    # But then there is a disconnect.
     y = np.full(num_samples, MISSING_LABEL_MARKER, dtype=f'U{max_label_name_len}')
 
-    # if json_file_path.exists():
     _load_labels_as_np(y, dataset_cfg.id)
 
     return y
@@ -655,7 +649,6 @@ def _filter_out_annotated(X: npt.NDArray[np.number], y: npt.NDArray[np.number]):
     return X_filtered, y_filtered, mapping
 
 
-# TODO will this be used for estmiators aswell?
 def _build_activeml_classifier(
     model_cfg: ModelConfig,
     dataset_cfg: DatasetConfig,
@@ -665,10 +658,8 @@ def _build_activeml_classifier(
     # n_classes = len(dataset_cfg.classes)
     # classes = np.arange(n_classes)
 
-    # TODO rename to Estimator?
     est_cls = model_cfg.definition.target_
 
-    # TODO: just pass key value pair here
     kwargs = {}
     if _estimator_accepts_random(est_cls):
         kwargs['random_state'] = random_state
@@ -691,7 +682,6 @@ def _build_activeml_classifier(
         raise RuntimeError(f"Estimator is not a sklearn ClassifierMixin")
 
 
-# TODO: can use from skactiveml.utils import call_func instead?
 def _filter_kwargs(func: QueryFunc, **kwargs) -> QueryFunc:
     params = inspect.signature(func).parameters
     param_names = params.keys()
@@ -707,7 +697,6 @@ def _filter_kwargs(func: QueryFunc, **kwargs) -> QueryFunc:
     return partial(func, **filtered_kwargs)
 
 
-# TODO always load dataset over and over again.
 def _setup_query(cfg: ActiveMlConfig, session_cfg: SessionConfig) -> tuple[QueryFunc, SkactivemlClassifier]:
     random_state = np.random.RandomState(cfg.random_seed)
 
@@ -777,9 +766,6 @@ def get_one_file_path(
     return get_file_paths(dataset_id, embedding_id, emb_idx)[0]
 
 
-# TODO: this should convert to Path allready
-# it should maybe just return a list[str]?
-# My ui should not deal with numpy stuff
 def get_file_paths(
     dataset_id: str,
     embedding_id: str,
@@ -807,7 +793,6 @@ def get_global_history_idx(dataset_id: str) -> int | None:
     """
     path = sap.HISTORY_IDX / f"{dataset_id}.json"
 
-    # TODO: It should not return None
     if not path.exists():
         return None
 
