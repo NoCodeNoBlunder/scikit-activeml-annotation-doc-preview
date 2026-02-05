@@ -340,23 +340,25 @@ def init(
     activeml_cfg = common.compose_from_state(store_data)
     data_type = activeml_cfg.dataset.data_type.instantiate()
 
+    api.ensure_global_history_idx_init(activeml_cfg.dataset.id)
+
     return dict(
         ui_trigger=ui_trigger,
         query_trigger=query_trigger,
-        annot_progress=init_annot_progress(store_data),
+        annot_progress=annot_progress.model_dump(),
         data_presentation_setting_children=data_presentation_settings.create_data_presentation_settings(data_type),
         # data_presentation_apply_children=data_presentation_settings.create_apply_button(data_type)
     )
 
 
-def init_annot_progress(store_data):
+def init_annot_progress(store_data) -> AnnotationProgress:
     dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
     embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
 
     return AnnotationProgress(
         num_annotated=api.get_num_annotated(dataset_id, exclude_missing=True),
         num_samples=api.get_total_num_samples(dataset_id, embedding_id)
-    ).model_dump()
+    )
 
 
 def _get_annotation_context(store_data: dict, batch: Batch):
@@ -469,14 +471,9 @@ def on_confirm(
     )
     store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
 
-    batch.advance(step=1)
-
-    # Override existing batch
-    store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
-
     annot_progress = AnnotationProgress.model_validate(annot_data)
 
-    if batch.is_completed():
+    if not batch.is_advanceable(step=1):
         logging.info("Batch is completed")
 
         dataset_id = store_data[StoreKey.DATASET_SELECTION.value]
@@ -485,18 +482,19 @@ def on_confirm(
         # All samples in the batch should be annotated by now
         annotations = cast(list[Annotation], annotations_list)
         api.update_json_annotations(dataset_id, embedding_id, annotations, batch)
+        annot_progress.num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
 
-        num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
-
-        if num_annotated == annot_progress.num_samples:
+        if annot_progress.is_all_annotated():
             logging.info("All Samples Annotated!")
-            raise PreventUpdate
-
-        annot_progress.num_annotated=num_annotated
-
-        set_props(ids.QUERY_TRIGGER, dict(data=True))
+            annot_progress.num_annotated
+            set_props(ids.UI_TRIGGER, dict(data=True))
+        else:
+            set_props(ids.QUERY_TRIGGER, dict(data=True))
     else:
+        batch.advance(step=1)
         set_props(ids.UI_TRIGGER, dict(data=True))
+
+    store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
 
     return dict(
         store_data=store_data,
@@ -634,27 +632,14 @@ def on_next_batch(
 
     logging.debug15("\n On next batch")
 
-    # INFO: Assumes global idx is on the last of the completed batch
+    # Assumes global idx is on the last of the completed batch
     # to determine correct number of restorable samples
     session_cfg = SessionConfig(batch_size, subsampling)
     activeml_cfg = common.compose_from_state(store_data)
-
-    dataset_id = store_data[StoreKey.DATASET_SELECTION.value]
+    dataset_id = activeml_cfg.dataset.id
 
     global_history_idx = api.get_global_history_idx(dataset_id)
-
     history_size = api.get_num_annotated(dataset_id)
-
-    if global_history_idx is None:
-        if history_size == 0:
-            global_history_idx = 0
-        else:
-            # Assume there have been annotations made but the index is missing
-            global_history_idx = history_size - 1
-
-        logging.debug15("Initializing global history idx to", global_history_idx)
-        api.set_global_history_idx(dataset_id, global_history_idx)
-
     num_restorable = max(0, history_size - (global_history_idx + 1))
 
     if num_restorable >= batch_size:
@@ -719,7 +704,6 @@ def on_next_batch(
         mode="json"
     )
 
-    # store_data[StoreKey.ANNOTATIONS_STATE.value] = annotations_list.model_dump()
     store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
 
     return dict(
@@ -803,11 +787,13 @@ def on_back(
     logging.debug15("\non back click callback")
 
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
+    annot_progress = AnnotationProgress.model_validate(annot_progress)
+
     idx, start_time, annotation, annotations_list = _get_annotation_context(store_data, batch)
     annot_metadata = _init_or_update_annot_metadata(annotation, start_time, end_time)
 
     old_label = (
-        MISSING_LABEL_MARKER if annotation is None else 
+        MISSING_LABEL_MARKER if annotation is None else
         annotation.label
     )
 
@@ -818,13 +804,6 @@ def on_back(
     )
 
     annotations_list[idx] = annotation
-
-    jsonable = ANNOTATIONS_ADAPTER.dump_python(
-        annotations_list,
-        mode="json"
-    )
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
-
 
     # TODO: Make a helper for this?
     if batch.progress == 0:
@@ -838,7 +817,6 @@ def on_back(
         # TODO this step should be done in the serialize and deserialize methods
         activeml_cfg = common.compose_from_state(store_data)
         history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
-        assert history_idx is not None
 
         try:
             batch, annotations_list = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
@@ -858,10 +836,15 @@ def on_back(
         logging.debug15(f"info decrementing global idx to: {api.get_global_history_idx(dataset_id)}")
 
         # Annotations can decrease if a previous annotation of was changed to SKIP
-        annot_progress = AnnotationProgress.model_validate(annot_progress)
         annot_progress.num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
     else:
          batch.advance(step= -1)
+
+    jsonable = ANNOTATIONS_ADAPTER.dump_python(
+        annotations_list,
+        mode="json"
+    )
+    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
 
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
     return dict(

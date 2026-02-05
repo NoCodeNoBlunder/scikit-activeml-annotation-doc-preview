@@ -163,19 +163,27 @@ class Batch:
         return self._progress
 
     def advance(self, step: int):
+        if not self.is_advanceable(step):
+            raise ValueError(
+                f"Cannot advance batch by {step} because it would result out of bounds"
+            )
+
         self._progress += step
-
-        if self.is_completed():
-            return
-
         self._min_progress = min(self._min_progress, self._progress)
         self._max_progress = max(self._max_progress, self._progress)
+
+    def _is_valid_progress(self, progress: int) -> bool:
+        return 0 <= progress < len(self.emb_indices)
 
     def get_num_annotated(self) -> int:
         return self._max_progress - self._min_progress + 1
 
+    def is_advanceable(self, step: int) -> bool:
+        next_progress = self._progress + step
+        return self._is_valid_progress(next_progress)
+
     def is_completed(self) -> bool:
-        return self.progress < 0 or self.progress >= len(self.emb_indices)
+        return not self._is_valid_progress(self.progress)
 
     def __len__(self) -> int:
         return len(self.emb_indices)
@@ -222,7 +230,16 @@ class HistoryIdx(pydantic.BaseModel):
     idx: int
 
 
-class AutomatedAnnotation(pydantic.BaseModel):
+class AnnotationProgress(pydantic.BaseModel):
+    num_annotated: int
+    num_samples: int
+
+    def is_all_annotated(self) -> bool:
+        return self.num_annotated == self.num_samples
+
+
+@dataclass
+class AutomatedAnnotation:
     embedding_idx: int
     label: int
     confidence: float

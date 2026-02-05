@@ -786,7 +786,23 @@ def get_file_paths(
         return file_paths[emb_indices].tolist()
 
 
-def get_global_history_idx(dataset_id: str) -> int | None:
+def ensure_global_history_idx_init(dataset_id: str):
+    try:
+        global_history_idx = get_global_history_idx(dataset_id)
+        return
+    except FileNotFoundError:
+        history_size = get_num_annotated(dataset_id)
+        if history_size == 0:
+            global_history_idx = 0
+        else:
+            # Assume there have been annotations made but the index is missing
+            global_history_idx = history_size - 1
+            
+        logging.debug15("Initializing global history idx to", global_history_idx)
+        set_global_history_idx(dataset_id, global_history_idx)
+
+
+def get_global_history_idx(dataset_id: str) -> int:
     """
     Retrieve the history index for a given dataset ID.
     Returns None if the file dose not exist
@@ -794,12 +810,15 @@ def get_global_history_idx(dataset_id: str) -> int | None:
     path = sap.HISTORY_IDX / f"{dataset_id}.json"
 
     if not path.exists():
-        return None
+        raise FileNotFoundError(
+            f"Global history index not found at {path}. This file should already exist."
+        )
 
     # Read JSON from file
     content = path.read_text()
     model = HistoryIdx.model_validate_json(content)
     return model.idx
+
 
 def set_global_history_idx(dataset_id: str, value: int) -> None:
     """
@@ -813,10 +832,9 @@ def set_global_history_idx(dataset_id: str, value: int) -> None:
 
     path.write_text(model.model_dump_json(indent=4))
 
+
 def increment_global_history_idx(dataset_id: str, value: int):
     current_idx = get_global_history_idx(dataset_id)
-    assert current_idx is not None
-
     new_val = current_idx + value
     set_global_history_idx(dataset_id, new_val)
     
