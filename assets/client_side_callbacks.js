@@ -5,26 +5,54 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         },
 
         scrollToChip: function (searchValue) {
+            function selectChip(node, chipText) {
+                node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                console.log("scroll to Chip with text: " + chipText)
+                return chipText;
+            }
+
             if (searchValue === "") {
                 return window.dash_clientside.no_update;
             }
 
+            const search = searchValue.trim().toLowerCase();
             const scrollArea = document.getElementById('my-scroll-area');
+
+            if (!scrollArea) {
+                console.error("scrollToChip: could not find scrollArea with id 'my-scroll-area'");
+                return window.dash_clientside.no_update;
+            }
+
+            // Find all children of scrollarea which ids starts with chip-
             const chipInputs = scrollArea.querySelectorAll('[id^="chip-"]');
 
-            for (const input of chipInputs) {
-                const labelElement = input.nextElementSibling;
-                const spanElement = labelElement.querySelector('span');
-                const chipText = spanElement.textContent.trim().toLowerCase();
-                if (chipText.includes(searchValue.toLowerCase())) {
-                    console.log(chipText);
-                    input.scrollIntoView({ block: 'center', behavior: 'smooth'});
+            let prefixMatchNode = null;
+            let prefixMatchText = null;
 
-                    const id = input.id;
-                    return id.substring(id.indexOf('-') + 1);
+            for (const input of chipInputs) {
+                const id = input.id;
+                // Infer chipText from id. Expects id to be of format chip-{label}
+                const chipText = id.substring(id.indexOf('-') + 1);
+                const chipTextLower = chipText.toLowerCase();
+
+                // Exact match
+                if (chipTextLower === search) {
+                    return selectChip(input, chipText);
+                }
+
+                // Prefix match
+                if (!prefixMatchNode && chipTextLower.startsWith(search)) {
+                    prefixMatchNode = input;
+                    prefixMatchText = chipText;
                 }
             }
 
+            // There was no exact match but a prefix match
+            if (prefixMatchNode) {
+                return selectChip(prefixMatchNode, prefixMatchText);
+            }
+
+            // No Match found
             return window.dash_clientside.no_update;
         },
 
@@ -96,7 +124,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             if (typeof dashId === "object") {
                 // If using dash Pattern matching the id is an object
                 // Convert it to a string as this string must be present in the dom.
-                
+
                 // Dash sorts keys alphabetically when serializing dict IDs into DOM
                 // need to replicate that here so the ids match
                 const keys = Object.keys(dashId).sort();
