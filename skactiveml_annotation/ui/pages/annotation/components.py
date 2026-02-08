@@ -414,12 +414,17 @@ def _sort(
     )
 
 
-def _create_chip(label, probability=None):
+def _create_chip(label: str, probability: float | None =None):
+    label = label.strip()
+
+    # the javascript clientside callback 'scrollToChip' requires that
+    # the id is of format 'chip-{label}' and value=label to function correctly
     chip = dmc.Chip(
         label,
         id=f'chip-{label}',
         value=label,
-        styles={"label": {"textAlign": "center"}},  # Ensures label is centered
+        # Ensures text inside label is centered
+        styles={"label": {"textAlign": "center"}},
     )
     if probability is None:
         return chip
@@ -427,7 +432,6 @@ def _create_chip(label, probability=None):
     return dmc.InputWrapper(
         chip,
         inputWrapperOrder=['input', 'label', 'description'],
-        # description=dmc.Text(f"{probability:.2f}", size="xs"),
         description=f"{probability:.2f}",
         style={"display": "flex", "flexDirection": "column", "alignItems": "center"}
     )
