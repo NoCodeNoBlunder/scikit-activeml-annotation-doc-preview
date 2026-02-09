@@ -142,10 +142,10 @@ class SessionConfig:
 
 class Batch:
     def __init__(
-        self, 
-        emb_indices: list[int], 
+        self,
+        emb_indices: list[int],
         classes_sklearn: list[str],
-        class_probas: list[list[float]] | None = None, 
+        class_probas: list[list[float]] | None = None,
         progress: int = 0
     ):
         if not (0 <= progress <= len(emb_indices)):
