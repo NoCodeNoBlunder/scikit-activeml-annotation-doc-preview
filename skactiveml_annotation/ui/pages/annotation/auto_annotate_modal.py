@@ -33,9 +33,8 @@ def create_auto_annotate_modal():
                     allowNegative=False,
                     w='35%',
                     required=True,
-                    persistence='auto-annotate-threshold-persistence',
-                    # TODO: use local?
-                    persistence_type='local',
+                    persistence=ids.AUTO_ANNOTATE_THRESHOLD,
+                    persistence_type='session',
                 ),
 
                 dmc.Center(
