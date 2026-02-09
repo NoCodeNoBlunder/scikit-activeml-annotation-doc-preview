@@ -6,15 +6,14 @@ from collections.abc import Iterable, Sequence
 from itertools import islice
 import json
 import inspect
-import bisect
 from dataclasses import Field, asdict 
 from functools import partial, lru_cache
 from pathlib import Path
 from typing import Any, Callable, ClassVar, cast, Protocol
-import dash.exceptions
 
 import hydra
 import pydantic
+import omegaconf
 from omegaconf import OmegaConf
 
 import numpy as np
@@ -24,6 +23,7 @@ import sklearn
 from skactiveml.base import SkactivemlClassifier
 from skactiveml.classifier import SklearnClassifier
 from skactiveml.pool import SubSamplingWrapper
+from sklearn.preprocessing import LabelEncoder
 
 from skactiveml_annotation.util import logging
 from skactiveml_annotation import util
@@ -47,6 +47,7 @@ from skactiveml_annotation.core.schema import (
 )
 
 from skactiveml_annotation.core.shared_types import DashProgressFunc
+from skactiveml_annotation.util.utils import SortOrder
 
 QueryFunc = Callable[..., npt.NDArray[np.intp]]
 
@@ -78,6 +79,15 @@ def get_query_cfg_from_id(query_id: str) -> QueryStrategyConfig:
 def get_dataset_cfg_from_path(path: Path) -> DatasetConfig:
     return deserialize.parse_yaml_file(path, DatasetConfig)
 
+def get_dataset_omegaconf_from_id(dataset_id: str) -> omegaconf.DictConfig | omegaconf.ListConfig:
+    path = sap.DATA_CONFIG_PATH / f"{dataset_id}.yaml"
+
+    if not path.exists():
+        raise FileNotFoundError(f"Dataset config not found: {path}")
+
+    return OmegaConf.load(path)
+
+
 def is_dataset_embedded(dataset_id: str, embedding_id: str) -> bool:
     key = f"{dataset_id}_{embedding_id}"
     path = sap.EMBEDDINGS_CACHE_PATH / f"{key}.npz"
@@ -95,14 +105,20 @@ def compose_config(overrides: tuple[tuple[str, str], ...]) -> ActiveMlConfig:
     with hydra.initialize_config_dir(version_base=None, config_dir=str(sap.CONFIG_PATH)):
         cfg = hydra.compose('config', overrides=overrides_hydra)
 
-        # TODO: add a comment here what is happening?
-        deserialize.set_ids_from_overrides(cfg, overrides)
+        overrides_dict = dict(overrides)
+        dataset_id = overrides_dict.get('dataset')
+        if dataset_id is None:
+            raise KeyError(
+                "Missing key 'dataset' in overrides. Dataset selection must be provided"
+            )
 
-        # TODO: Check if dataset was overriden if for instance additional labels
+        # Check if dataset was overriden if for instance additional labels
         # have been added swap out dataset config to access that data
-        if deserialize.is_dataset_cfg_overridden(cfg.dataset.id):
-            path = sap.OVERRIDE_CONFIG_DATASET_PATH / f'{cfg.dataset.id}.yaml'
-            cfg.dataset = get_dataset_cfg_from_path(path)
+        if deserialize.is_dataset_cfg_overridden(dataset_id):
+            path = sap.OVERRIDE_CONFIG_DATASET_PATH / f'{dataset_id}.yaml'
+            cfg.dataset = OmegaConf.load(path)
+
+        deserialize.set_ids_from_overrides(cfg, overrides)
 
         try:
             return ActiveMlConfig.model_validate(cfg)
@@ -113,29 +129,20 @@ def compose_config(overrides: tuple[tuple[str, str], ...]) -> ActiveMlConfig:
 
 def _get_sklearn_classes(clf: SkactivemlClassifier) -> list[str]:
     """
-    Extracts the classes_ attribute from a SkactivemlClassifier and returns it as a list of strings.
-    
-    Parameters:
-        clf (SkactivemlClassifier): The classifier from which to extract classes.
-    
-    Returns:
-        List[str]: List of class names. Returns [""] if extraction fails.
+    Return classifier classes as a list of strings.
+
+    Raises:
+        ValueError: If the classifier is not fitted or has no valid classes_.
     """
     try:
-        raw_classes = getattr(clf, "classes_", None)
-        if raw_classes is None:
-            raise AttributeError("clf.classes_ is None (model not fitted?)")
+        raw_classes = clf.classes_
+    except AttributeError as e:
+        raise ValueError(
+            f"{type(clf).__name__} has no 'classes_' attribute. "
+            "Is the model fitted?"
+        ) from e
 
-        classes_sklearn = raw_classes.tolist()
-        if not isinstance(classes_sklearn[0], str):
-            logging.warning("Is it not strings?")
-        classes_sklearn = cast(list[str], classes_sklearn)
-
-    except Exception as e:
-        logging.error("Failed to extract clf.classes_: %s", e, exc_info=True)
-        classes_sklearn = [""]
-
-    return classes_sklearn
+    return np.asarray(raw_classes, dtype=str).tolist()
 
 
 def request_query(
@@ -408,35 +415,113 @@ def save_partial_annotations(batch: Batch, dataset_id: str, embedding_id: str, a
     completed_batch(dataset_id, embedding_id, annotated, batch)
 
 
-def add_class(dataset_cfg, new_class_name: str) -> int:
+def add_class(
+    dataset_cfg: DatasetConfig,
+    new_class_name: str,
+    batch: Batch,
+):
+    # Validate new class name
     if new_class_name == '':
-        logging.warning(f"Class name has to have at least lenght 1")
-        # TODO I dont want to have dash in the api.
-        raise dash.exceptions.PreventUpdate
+        raise ValueError("Class name has to have at least length 1")
 
     classes = dataset_cfg.classes
 
     if new_class_name in classes:
-        logging.warning(f"Cannot add new class because {new_class_name} already exists.")
-        raise dash.exceptions.PreventUpdate
+        raise ValueError(f"Cannot add new class because '{new_class_name}' already exists.")
 
-    # TODO classes can be numbers in which case there is a different order.
-    if util.utils.is_sorted(classes):
-        insert_idx = bisect.bisect_left(classes, new_class_name)
-        classes.insert(insert_idx, new_class_name)
-    else:
-        classes.append(new_class_name)
-        insert_idx = len(classes) - 1
+    _add_class_and_save_yaml_override(classes, new_class_name, dataset_cfg.id)
 
-    sap.OVERRIDE_CONFIG_DATASET_PATH.mkdir(parents=True, exist_ok=True)
-    override_path = sap.OVERRIDE_CONFIG_DATASET_PATH / f'{dataset_cfg.id}.yaml'
-    OmegaConf.save(config=dataset_cfg, f=override_path)
+    _update_batch_after_class_insertion(batch, classes, new_class_name)
 
     # Invalidate cache. Force new composing when called next time.
     compose_config.cache_clear()
 
-    logging.info(f'insert idx: {insert_idx}')
-    return insert_idx
+
+def _add_class_and_save_yaml_override(
+    classes: list[str],
+    new_class_name: str,
+    dataset_id: str,
+):
+    """
+    Add a class to the dataset YAML config. Infer whether the existing classes
+    are sorted and maintain that order if possible; otherwise, append the new
+    class to the end. Save the updated dataset YAML config to the dataset
+    override directory.
+
+    Args:
+        classes: Existing dataset class names.
+        new_class_name: Class name to add.
+        dataset_id: Dataset identifier used to load and save the config.
+    """
+
+    # Infer if the classes in the yaml file have an order
+    sort_key = (
+        float
+        if util.utils.is_all_numeric(classes + [new_class_name])
+        else None
+    )
+    sort_order = util.utils.get_sort_order(classes, sort_key)
+
+    updated_classes = classes.copy()
+    updated_classes.append(new_class_name)
+
+    match sort_order:
+        case SortOrder.ASC:
+            updated_classes.sort(key=sort_key)
+        case SortOrder.DESC:
+            updated_classes.sort(key=sort_key, reverse=True)
+        case SortOrder.UNSORTED:
+            pass
+
+    omega_cfg = get_dataset_omegaconf_from_id(dataset_id)
+    omega_cfg.classes = updated_classes
+
+    # Derive override path
+    sap.OVERRIDE_CONFIG_DATASET_PATH.mkdir(parents=True, exist_ok=True)
+    override_path = (
+        sap.OVERRIDE_CONFIG_DATASET_PATH / f"{dataset_id}.yaml"
+    )
+
+    OmegaConf.save(config=omega_cfg, f=override_path)
+
+
+def _update_batch_after_class_insertion(
+    batch: Batch,
+    classes: list[str],
+    new_class_name: str,
+):
+    """
+    Update a Batch after inserting a new class.
+
+    This inserts the new class into the sklearn class list at the correct
+    position and updates the class probability matrix if present.
+    """
+
+    sklearn_insertion_idx = _insertion_index_sklearn(classes, new_class_name)
+    batch.classes_sklearn.insert(sklearn_insertion_idx, new_class_name)
+
+    if batch.class_probas is not None:
+        batch.class_probas = _insert_class_prob_column(
+            batch.class_probas,
+            sklearn_insertion_idx,
+        )
+
+
+def _insertion_index_sklearn(
+    classes: list[str],
+    new_class: str,
+) -> int:
+    label_enc = LabelEncoder()
+    label_enc.fit(classes + [new_class])
+    insertion_idx = label_enc.transform([new_class])[0]
+    return insertion_idx
+
+
+def _insert_class_prob_column(probas: list[list[float]], idx: int) -> list[list[float]]:
+    return [
+        row[:idx] + [0.0] + row[idx:]
+        for row in probas
+    ]
 
 
 # TODO put this stuff into utils package?

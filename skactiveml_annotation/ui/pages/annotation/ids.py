@@ -64,8 +64,7 @@ AUTO_ANNOTATE_THRESHOLD = 'auto-annotate-threshold'
 
 # Add Label
 ADD_CLASS_BTN = 'add-class-btn'
-ADD_CLASS_INSERTION_IDXES = 'add-class-insertion-idxes'
-ADD_CLASS_WAS_ADDED = 'add-class-was-added'
+ADDED_CLASS_NAME = 'added-class-name'
 
 # Search Input
 LABEL_SEARCH_INPUT = 'label-search-input'

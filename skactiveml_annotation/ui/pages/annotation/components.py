@@ -258,40 +258,30 @@ def create_data_display(
 
 
 def create_label_chips(
-    classes_yaml: list[str], 
-    # TODO: The batch does not always contain probas as some classifers dont have this method
+    classes_yaml: list[str],
     annotation: Annotation | None,
-    batch: Batch,  
-    show_probas: bool, 
+    batch: Batch,
+    show_probas: bool,
     sort_by: SortBySetting,
-    was_class_added: bool, 
-    insertion_idxes: list[int]
+    preselect: str | None,
 ):
     # Check if there is some annotation already for that sample in case the user used back btn.
-    was_annotated = annotation is not None # TODO: Using None if its not annotated acctually made sense
+    was_annotated = annotation is not None
 
     class_probas = None
     if batch.class_probas is not None:
         class_probas = batch.class_probas[batch.progress]
 
-    # Check if probabilities have to be sorted
-    must_sort = (
-        class_probas is not None
-        and (show_probas or (not was_class_added and not was_annotated))
-    )
-
-    if must_sort:
-        if insertion_idxes is not None:
-            # Some classes have been added for which the classifier has not yet been fitted for.
-            # Set the class_prob to 0.0 in this case for these classes
-            class_probas = _pad_with_zeros(class_probas, insertion_idxes)
-
+    if class_probas is not None and show_probas:
         # Sorted classes and class_probas
         classes_yaml, class_probas = _sort(classes_yaml, batch.classes_sklearn, class_probas, sort_by)
+        chips = [_create_chip(label, probability) for label, probability in
+                 zip(classes_yaml, class_probas)]
+    else:
+        chips = [_create_chip(label) for label in classes_yaml]
 
-    if was_class_added:
-        # preselect last added class
-        preselect = classes_yaml[insertion_idxes[-1]]
+    # Determine which label to preselect
+    if preselect is not None:
         logging.info(f"preselect after adding label: {preselect}")
     elif was_annotated:
         # Was allready previously annoated. For intance when going back
@@ -301,14 +291,6 @@ def create_label_chips(
         preselect = classes_yaml[int(highest_prob_idx)]
     else:
         preselect = MISSING_LABEL_MARKER
-
-
-    if show_probas and class_probas is not None:
-        chips = [_create_chip(label, probability) for label, probability in
-                 zip(classes_yaml, class_probas)]
-    else:
-        chips = [_create_chip(label) for label in classes_yaml]
-
 
     chip_group = dmc.ChipGroup(
         children=chips,
@@ -366,9 +348,9 @@ def _pad_with_zeros(class_probas, insertion_idxes):
 
 # TODO: It might be worth to convert to numpy array honestly
 def _sort(
-    classes_yaml: list[str], 
+    classes_yaml: list[str],
     classes_sklearn: list[str],
-    class_probas: list[float], 
+    class_probas: list[float],
     sort_by: SortBySetting
 ) -> tuple[list[str], list[float]]:
     """

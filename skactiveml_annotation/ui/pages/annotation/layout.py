@@ -77,8 +77,7 @@ def layout(**kwargs):
                 # TODO use a pydantic Model for this. Its not even clear what this is exactly
                 # Why is there an extra Store for this? Just update UI properties?
                 dcc.Store(id=ids.ANNOT_PROGRESS, storage_type='session'),
-                dcc.Store(id=ids.ADD_CLASS_INSERTION_IDXES, storage_type='session'),
-                dcc.Store(id=ids.ADD_CLASS_WAS_ADDED, storage_type='session', data=False),
+                dcc.Store(id=ids.ADDED_CLASS_NAME, storage_type='session'),
 
                 Keyboard(id="keyboard"),
 
@@ -482,8 +481,7 @@ def on_confirm(
     State('session-store', 'data'),
     State(ids.DATA_DISPLAY_CFG_DATA, 'data'),
     State('browser-data', 'data'),
-    State(ids.ADD_CLASS_WAS_ADDED, 'data'),
-    State(ids.ADD_CLASS_INSERTION_IDXES, 'data'),
+    State(ids.ADDED_CLASS_NAME, 'data'),
     State(ids.LABEL_SETTING_SHOW_PROBAS, 'checked'),
     State(ids.LABEL_SETTING_SORTBY, 'value'),
     output=dict(
@@ -495,9 +493,9 @@ def on_confirm(
         data_width=Output(ids.DATA_DISPLAY_CONTAINER, 'w'),
         data_height=Output(ids.DATA_DISPLAY_CONTAINER, 'h'),
         annot_start_time_trigger=Output(ids.START_TIME_TRIGGER, 'data'),
-        was_class_added=Output(ids.ADD_CLASS_WAS_ADDED, 'data', allow_duplicate=True),
         disable_all_action_buttons=Output(ids.ALL_ANNOTATION_BTNS, 'loading', allow_duplicate=True),
         focus_trigger=Output("focus-el-trigger", "data"),
+        added_class_name=Output(ids.ADDED_CLASS_NAME, 'data'),
     ),
     prevent_initial_call=True,
 )
@@ -509,8 +507,7 @@ def on_ui_update(
     data_display_setting_json,
     browser_dpr,
     # Adding classes
-    was_class_added,
-    insertion_idxes,
+    added_class_name: str | None,
     # Label settings
     show_probas: bool,  # TODO this is confusing
     sort_by: str,
@@ -553,8 +550,7 @@ def on_ui_update(
     # TODO how to organize this better?
     return dict(
         label_container=components.create_label_chips(
-            activeml_cfg.dataset.classes, annotation, batch, show_probas, sort_by,
-            was_class_added, insertion_idxes
+            activeml_cfg.dataset.classes, annotation, batch, show_probas, sort_by, added_class_name
         ),
         show_container=rendered_data,
         batch_progress=(idx / len(batch.emb_indices)) * 100,
@@ -563,10 +559,10 @@ def on_ui_update(
         data_width=w,
         data_height=h,
         annot_start_time_trigger=True,
-        was_class_added=False,
         disable_all_action_buttons=[False] * 4, # TODO: hardcoded
         # TODO: I should also clear the Input here
         focus_trigger=ids.LABEL_SEARCH_INPUT,
+        added_class_name=None,
     )
 
 
@@ -586,7 +582,6 @@ clientside_callback(
     output=dict(
         store_data=Output('session-store', 'data', allow_duplicate=True),
         ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
-        insertion_idxes=Output(ids.ADD_CLASS_INSERTION_IDXES, 'data', allow_duplicate=True)
     ),
     prevent_initial_call=True,
     # background=True, # INFO LRU Cache won't work with this
@@ -698,7 +693,6 @@ def on_next_batch(
     return dict(
         store_data=store_data,
         ui_trigger=True,
-        insertion_idxes=None,
     )
 
 
@@ -921,44 +915,46 @@ def on_annot_start_timestamp(
     Input(ids.ADD_CLASS_BTN, 'n_clicks'),
     State('session-store', 'data'),
     State(ids.LABEL_SEARCH_INPUT, 'value'),
-    State(ids.ADD_CLASS_INSERTION_IDXES, 'data'),
     output=dict(
-        # ui_trigger=Output(QUERY_TRIGGER, 'data', allow_duplicate=True),
         ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
-        # search_value=Output(LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
-        insertion_idxes=Output(ids.ADD_CLASS_INSERTION_IDXES, 'data'),
+        search_value=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
+        added_class_name=Output(ids.ADDED_CLASS_NAME, 'data', allow_duplicate=True),
         label_value=Output('label-radio', 'value', allow_duplicate=True),
-        was_class_added=Output(ids.ADD_CLASS_WAS_ADDED, 'data', allow_duplicate=True)
+        store_data=Output('session-store', 'data', allow_duplicate=True),
     ),
     prevent_initial_call=True
 )
 def on_add_new_class(
-    click,
-    session_data,
-    new_class_name,
-    insertion_idxes: list[int]
+    click: int | None,
+    store_data: dict,
+    new_class_name: str | None,
 ):
-    if click is None or new_class_name is None:
+    if click is None:
         raise PreventUpdate
 
-    activeml_cfg = common.compose_from_state(session_data)
+    if new_class_name is None:
+        logging.warning("Failed to add class because no class name is provided")
+        raise PreventUpdate
 
-    insertion_idx = api.add_class(
-        dataset_cfg=activeml_cfg.dataset,
-        new_class_name=new_class_name
-    )
+    activeml_cfg = common.compose_from_state(store_data)
+    batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
 
-    # Let UI know that there have been added some class for which no probas will exist
-    # before refitting with new classes
-    if insertion_idxes is None:
-        insertion_idxes = [insertion_idx]
-    else:
-        insertion_idxes.append(insertion_idx)
+    try:
+        api.add_class(
+            dataset_cfg=activeml_cfg.dataset,
+            new_class_name=new_class_name,
+            batch=batch,
+        )
+    except ValueError as e:
+        logging.warning(f"Failed to add class: {e}")
+        raise PreventUpdate
+
+    store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
 
     return dict(
         ui_trigger=True,
-        # search_value='',
-        insertion_idxes=insertion_idxes,
+        search_value='',
+        added_class_name=new_class_name,
         label_value=new_class_name,
-        was_class_added=True,
+        store_data=store_data,
     )
