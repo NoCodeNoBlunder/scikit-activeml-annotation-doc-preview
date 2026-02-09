@@ -226,18 +226,8 @@ class AnnotationList(pydantic.BaseModel):
 class HistoryIdx(pydantic.BaseModel):
     idx: int
 
-@dataclass
-class AutomatedAnnotation:
+
+class AutomatedAnnotation(pydantic.BaseModel):
     embedding_idx: int
-    file_path: str
     label: int
     confidence: float
-
-    def to_json(self) -> str:
-        return json.dumps(asdict(self))
-
-    @staticmethod
-    def from_json(json_str: str):
-        data = json.loads(json_str)
-        return AutomatedAnnotation(**data)
-
