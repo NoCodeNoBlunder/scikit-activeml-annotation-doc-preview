@@ -238,8 +238,7 @@ class AnnotationProgress(pydantic.BaseModel):
         return self.num_annotated == self.num_samples
 
 
-@dataclass
-class AutomatedAnnotation:
+class AutomatedAnnotation(pydantic.BaseModel):
     embedding_idx: int
     label: int
     confidence: float

@@ -312,24 +312,45 @@ clientside_callback(
 @callback(
     Input(ids.ANNOTATION_INIT, 'pathname'),
     State('session-store', 'data'),
+    State('batch-size-input', 'value'),
     output=dict(
         ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
         query_trigger=Output(ids.QUERY_TRIGGER, 'data', allow_duplicate=True),
         annot_progress=Output(ids.ANNOT_PROGRESS, 'data'),
         data_presentation_setting_children=Output(ids.DATA_PRESENTATION_SETTINGS_CONTAINER, "children"),
+        session_data=Output('session-store', 'data', allow_duplicate=True),
     ),
     prevent_initial_call='initial_duplicate'
 )
 def init(
     _,
     store_data,
+    batch_size: int,
 ):
-    batch_json = store_data.get(StoreKey.BATCH_STATE.value)
-    must_query = (
-        batch_json is None or
-        Batch.from_json(batch_json).is_completed()
-    )
-    
+    batch_dict = store_data.get(StoreKey.BATCH_STATE.value)
+    batch = Batch.from_json(batch_dict) if batch_dict is not None else None
+    annot_progress = init_annot_progress(store_data)
+
+    if annot_progress.is_all_annotated():
+        if batch is None:
+            # Restore batch
+            activeml_cfg = common.compose_from_state(store_data)
+            history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
+            batch, annotations_list = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
+
+            jsonable = ANNOTATIONS_ADAPTER.dump_python(
+                annotations_list,
+                mode="json"
+            )
+            store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
+            store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
+        must_query = False
+    else:
+        must_query = (
+            batch is None
+            or batch.is_completed()
+        )
+
     if must_query:
         ui_trigger = dash.no_update
         query_trigger = True
@@ -347,7 +368,7 @@ def init(
         query_trigger=query_trigger,
         annot_progress=annot_progress.model_dump(),
         data_presentation_setting_children=data_presentation_settings.create_data_presentation_settings(data_type),
-        # data_presentation_apply_children=data_presentation_settings.create_apply_button(data_type)
+        session_data=store_data,
     )
 
 

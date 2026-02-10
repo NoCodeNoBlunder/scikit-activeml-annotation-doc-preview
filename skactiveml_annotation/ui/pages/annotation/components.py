@@ -329,24 +329,6 @@ def create_label_chips(
     )
 
 
-def _pad_with_zeros(class_probas, insertion_indices):
-    """
-    Return a new list that has the same entries as class_probas,
-    but with a 0 inserted at each position in insertion_idxs.
-    """
-    new_length = len(class_probas) + len(insertion_indices)
-
-    result = [0.0] * new_length
-
-    orig_i = 0
-    for i in range(new_length):
-        if i not in insertion_indices:
-            result[i] = class_probas[orig_i]
-            orig_i += 1
-
-    return result
-
-
 # TODO: It might be worth to convert to numpy array honestly
 def _sort(
     classes_yaml: list[str],
