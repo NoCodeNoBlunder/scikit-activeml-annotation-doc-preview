@@ -33,9 +33,8 @@ def create_auto_annotate_modal():
                     allowNegative=False,
                     w='35%',
                     required=True,
-                    persistence='auto-annotate-threshold-persistence',
-                    # TODO: use local?
-                    persistence_type='local',
+                    persistence=ids.AUTO_ANNOTATE_THRESHOLD,
+                    persistence_type='session',
                 ),
 
                 dmc.Center(
@@ -58,7 +57,7 @@ def create_auto_annotate_modal():
 @callback(
     Input(ids.AUTO_ANNOTATE_BTN, 'n_clicks'),
     output=dict(
-        modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened'),
+        modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
     ),
     prevent_initial_call=True
 )
@@ -79,6 +78,9 @@ def open_modal(
     State('session-store', 'data'),
     State(ids.ANNOT_PROGRESS, 'data'),
     State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
+    output=dict(
+        auto_annot_modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
+    ),
     # output=dict(
     #     # annot_progress=Output(ANNOT_PROGRESS, 'data', allow_duplicate=True)
     #     # query_trigger=Output(QUERY_TRIGGER, 'data', allow_duplicate=True)
@@ -89,7 +91,7 @@ def on_auto_annotate(
     click,
     session_data,
     annot_progress,
-    threshold
+    threshold,
 ):
     if click is None:
         raise PreventUpdate
@@ -113,6 +115,10 @@ def on_auto_annotate(
     # annot_progress[AnnotProgress.PROGRESS.value] = num_annotated
 
     api.auto_annotate(X, activeml_cfg, threshold)
+
+    return dict(
+        auto_annot_modal_open=False,
+    )
 
     # return dict(
     #     # query_trigger=True

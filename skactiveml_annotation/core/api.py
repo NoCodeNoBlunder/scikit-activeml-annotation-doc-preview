@@ -6,10 +6,9 @@ from collections.abc import Iterable, Sequence
 from itertools import islice
 import json
 import inspect
-from dataclasses import Field, asdict 
 from functools import partial, lru_cache
 from pathlib import Path
-from typing import Any, Callable, ClassVar, cast, Protocol
+from typing import Callable, cast
 
 import hydra
 import pydantic
@@ -50,10 +49,6 @@ from skactiveml_annotation.core.shared_types import DashProgressFunc
 from skactiveml_annotation.util.utils import SortOrder
 
 QueryFunc = Callable[..., npt.NDArray[np.intp]]
-
-class DataClassInstance(Protocol):
-    __dataclass_fields__: ClassVar[dict[str, Field[Any]]]
-
 
 T = TypeVar("T")
 
@@ -366,48 +361,50 @@ def auto_annotate(
     # Select samples that are above the threshold probability
     is_threshold = (top_probas > threshold)
     emb_indices = mapping[is_threshold]
-    selected_classes = top_classes[is_threshold]
-    selected_probas = top_probas[is_threshold]
+    classes = top_classes[is_threshold]
+    probas = top_probas[is_threshold]
+
+    if sort_by_proba:
+        # Negate for descending order
+        sorted_indices = np.argsort(-probas)
+        emb_indices = emb_indices[sorted_indices]
+        classes = classes[sorted_indices]
+        probas = probas[sorted_indices]
 
     # Get file paths for embedding indices
     selected_file_paths = get_file_paths(
         cfg.dataset.id,
         cfg.embedding.id,
-        emd_indices=emb_indices
+        emb_indices=emb_indices,
     )
 
-    automated_annots = [
-        AutomatedAnnotation(
+    print(probas)
+    print(util.utils.get_sort_order(probas))
+
+    # python lists garantee to preserve insertion order since pytyon 3.17
+    auto_annots = {
+        f_path: AutomatedAnnotation(
             embedding_idx=int(emb_idx),
             label=label,
-            file_path=f_path,
             confidence=float(proba),
         )
-        for emb_idx, label, proba, f_path
-        in zip(emb_indices, selected_classes, selected_probas, selected_file_paths)
-    ]
+        for f_path, (emb_idx, label, proba)
+        in zip(selected_file_paths, zip(emb_indices, classes, probas))
+    }
 
-    if sort_by_proba:
-        automated_annots.sort(key=lambda ann: ann.confidence, reverse=True)
-
-    manual_annots = list(_deserialize_annotations(cfg.dataset.id).values()) 
+    manual_annots = _deserialize_annotations(cfg.dataset.id)
 
     json_store_path = sap.ANNOTATED_PATH / f'{cfg.dataset.id}-automated.json'
-
-    _serialize_annotations_with_keys(
+    _serialize_automatic_and_manual_annotations(
         json_store_path,
-        (manual_annots, automated_annots),
-        ('manual', 'automated')
+        manual_annots,
+        auto_annots,
     )
 
-    num_auto_annotated = len(automated_annots)
+    num_auto_annotated = len(auto_annots)
     num_total_annotated = num_auto_annotated + len(manual_annots)
     logging.info(f'{num_auto_annotated} samples have been automatically annoted @\n{json_store_path}')
     logging.info(f'In total annotated: {num_total_annotated}')
-
-    # TODO Do we want to use automatically generated labels for further fitting?
-    # total_annots = len(total_annots)
-    # return total_annots
 
 
 def save_partial_annotations(batch: Batch, dataset_id: str, embedding_id: str, annotations: list[Annotation | None]):
@@ -615,19 +612,24 @@ def update_annotations(
     _serialize_annotations(dataset_id, annotations)
 
 
-def _serialize_annotations_with_keys(
+def _serialize_automatic_and_manual_annotations(
     path: Path,
-    data: Sequence[Sequence[DataClassInstance]],
-    keys: Sequence[str]
+    manual_annotations: dict[str, Annotation],
+    auto_annotations: dict[str, AutomatedAnnotation],
 ):
-    # TODO change serialization
     payload = {
-        key: [asdict(obj) for obj in group]
-        for key, group in zip(keys, data)
+        'manual': {
+            f_path: ann.model_dump() for f_path, ann in manual_annotations.items()
+        },
+        'automatic': {
+            f_path: ann.model_dump() for f_path, ann in auto_annotations.items()
+        },
     }
 
-    with path.open('w', encoding='utf-8') as f:
-        json.dump(payload, f, indent=4)
+    path.write_text(
+        json.dumps(payload, indent=4),
+        encoding='utf-8',
+    )
 
 
 def _load_labels_as_np(y: np.ndarray, dataset_id: str):
@@ -802,13 +804,13 @@ def get_one_file_path(
 def get_file_paths(
     dataset_id: str,
     embedding_id: str,
-    emd_indices: np.ndarray[tuple[int], np.dtype[np.intp]] | list[int] | int
+    emb_indices: np.ndarray[tuple[int], np.dtype[np.intp]] | list[int] | int,
 ) -> list[str]:
     cache_key = f'{dataset_id}_{embedding_id}'
     cache_path = sap.EMBEDDINGS_CACHE_PATH / f"{cache_key}.npz"
 
-    if isinstance(emd_indices, int):
-        emd_indices = [emd_indices]
+    if isinstance(emb_indices, int):
+        emb_indices = [emb_indices]
 
     if not cache_path.exists():
         raise RuntimeError(f"Cannot get embedding at path: {cache_path}! \nEmbedding should exists already")
@@ -816,7 +818,7 @@ def get_file_paths(
     with np.load(str(cache_path), mmap_mode='r') as data:
         file_paths = data['file_paths']
         # tolist() returns np.array if given a list
-        return file_paths[emd_indices].tolist()
+        return file_paths[emb_indices].tolist()
 
 
 def get_global_history_idx(dataset_id: str) -> int | None:

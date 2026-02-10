@@ -84,8 +84,13 @@ def on_key_pressed_handler(
         logging.error(f"Key Bindings for page: {page} does not exist")
         raise PreventUpdate
 
-    # TODO:
     key_mapping = modal_mapping.get(modal, None)
+    if key_mapping is None:
+        # Use Main page keybinds of keybinds for modal are not defined
+        key_mapping = modal_mapping.get("Main", None)
+    if key_mapping is None:
+        logging.error(f"No Main key mapping is defined for page: {page}")
+        raise PreventUpdate
 
     normalized_hotkey = _key_event_to_canonical_str(key_event)
 
