@@ -124,7 +124,6 @@ def layout(**kwargs: object):
                                         html.Div(id=RADIO_SELECTION),  # workaround so id exists at the start
                                         id=UI_CONTAINER,
                                         tabIndex=0, # Make Container focusable
-                                        # TODO use Mantine styling for this.
                                         style={
                                             "mw": "15vw",
                                             "whiteSpace": "normal", "wordWrap": "break-word",
@@ -261,7 +260,6 @@ def _create_dataset_selection(preselect):
         # Preselect the first element
         preselect = data[1][0].id
 
-    # TODO repeated code.
     return \
         dmc.RadioGroup(
             id=RADIO_SELECTION,
@@ -310,7 +308,6 @@ def _create_embedding_radio_group(session_data):
 
 
 def _create_bool_icon(val: bool):
-    # TODO do this via CSS
     if val:
         icon = 'tabler:check'
         color = 'green'
@@ -431,7 +428,6 @@ def handle_confirm(
         )
 
     elif current_step == 0:
-        # TODO move this somewhere else. This is bad here.
         prev_dataset_id = session_data.get(StoreKey.DATASET_SELECTION.value)
         was_dataset_changed = prev_dataset_id is not None and radio_value != prev_dataset_id
         if was_dataset_changed:

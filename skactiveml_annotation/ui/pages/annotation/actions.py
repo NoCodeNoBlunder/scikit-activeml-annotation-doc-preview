@@ -91,16 +91,6 @@ CONFIRM_MODAL_ANNOTATION = register_action(
 )
 
 
-#  --- Audio Controlls ---
-# TODO:
-# TOGGLE_AUDIO_PLAYBACK = register_default_keybinds(
-#     ButtonAction(
-#         "Annotation"."Main".
-#
-#     )
-# )
-
-
 # --- Default Keybinds ---
 DEFAULT_KEYBINDS_ANNOTATION = register_default_keybinds(
     "Annotation",

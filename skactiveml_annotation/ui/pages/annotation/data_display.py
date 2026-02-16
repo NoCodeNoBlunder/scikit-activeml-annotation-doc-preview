@@ -22,7 +22,6 @@ from skactiveml_annotation.core.data_display_model import (
 from skactiveml_annotation.core import api
 from skactiveml_annotation.util import logging
 
-# TODO make components out of these.
 def create_image_display(
     path_to_img: Path, 
     image_display_setting: ImageDataDisplaySetting, 
@@ -52,7 +51,6 @@ def create_image_display(
     mb = 0
     fig = go.Figure(
         data=go.Image(
-            # TODO instead of Inline URI server file on demand?
             source=pil_image_to_inline_data_url(image, format="PNG"),
             # z=image,
         ),
@@ -136,7 +134,6 @@ def create_text_display(path: Path, text_display_setting: TextDataDisplaySetting
                 ),
                 py=1,
                 style={
-                    # TODO hardcoded width
                     "width": "46vw",        # restrict component width
                     "overflowX": "hidden",      # no horizontal scrollbar
 

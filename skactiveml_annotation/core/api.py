@@ -144,12 +144,13 @@ def request_query(
     cfg: ActiveMlConfig,
     session_cfg: SessionConfig,
     X: np.ndarray,
-    filter_out_emb_indices: list[int]
+    filter_out_emb_indices: list[int] | None = None,
 ) -> tuple[Batch, list[Annotation | None]]:
     y = _load_or_init_annotations(X, cfg.dataset)
 
-    # Exclude these embedding indices from querying by marking them as discarded
-    y[filter_out_emb_indices] = DISCARD_MARKER
+    if filter_out_emb_indices is not None:
+        # Exclude these embedding indices from querying by marking them as discarded
+        y[filter_out_emb_indices] = DISCARD_MARKER
 
     query_func, clf = _setup_query(cfg, session_cfg)
 
@@ -163,18 +164,11 @@ def request_query(
 
     clf.fit(X_cand, y_cand)
 
-    # TODO show how often class appeared
-    # Only update when refitting?
-    # unique_values, counts = np.unique(y_cand, return_counts=True)
-    # for val, count in zip(unique_values, counts):
-    #     logging.info(f'{val}: {count}')
-
     logging.info("Querying the active ML model ...")
 
     try:
         query_cand_indices = query_func(X=X_cand, y=y_cand)
     except Exception as e:
-        # TODO add error handling, UI notification and logging.
         raise RuntimeError(
             f'Sample selection process failed with error: {e}'
         )
@@ -380,9 +374,6 @@ def auto_annotate(
         cfg.embedding.id,
         emb_indices=emb_indices,
     )
-
-    print(probas)
-    print(util.utils.get_sort_order(probas))
 
     # python lists garantee to preserve insertion order since pytyon 3.17
     auto_annots = {
@@ -668,7 +659,8 @@ def _build_activeml_classifier(
 
     if isinstance(est, SkactivemlClassifier):
         # Classifier is already wrapped aka supports missing labels
-        # TODO missing_label wont have correct value.
+        # assigning a string for missing_label is valid from the documentation.
+        est.missing_label=MISSING_LABEL_MARKER  # pyright: ignore[reportAttributeAccessIssue]
         return est
     elif isinstance(est, sklearn.base.ClassifierMixin):
         wrapped_est = SklearnClassifier(
@@ -843,7 +835,8 @@ def restore_batch(
     history_idx: int, 
     restore_forward: bool,
     num_restore: int
-) -> tuple[Batch, list[Annotation | None]]:
+# ) -> tuple[Batch, list[Annotation | None]]:
+) -> tuple[Batch, list[Annotation]]:
     # INFO: When restoring backwards it will try to restore num_restore samples
     # If there are not enough samples left to restore it will restore as much as it can
     # If it cant restore it will throw an error
@@ -857,7 +850,6 @@ def restore_batch(
         end = start + num_restore
     else:
         end = history_idx # exclusive
-        # TODO: 
         start = max(0, end - num_restore) 
 
         num_restorable = end - start
@@ -891,9 +883,6 @@ def restore_batch(
 
     estimator.fit(X_cand, y_cand)
     class_probas = estimator.predict_proba(X[emb_indices])
-
-    #  TODO workarround typing 
-    annotations = cast(list[Annotation | None], annotations)
 
     return (
         Batch(

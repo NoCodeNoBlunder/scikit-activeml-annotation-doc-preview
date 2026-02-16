@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Mapping, cast
+from typing import cast
 
 from dash_extensions import Keyboard
 import pydantic
@@ -27,7 +27,6 @@ import dash_loading_spinners as dls
 from skactiveml_annotation.core.data_display_model import DataDisplaySetting
 from skactiveml_annotation.ui import (
     common,
-    hotkeys,
 )
 from skactiveml_annotation.core import api
 from skactiveml_annotation.util import logging
@@ -53,7 +52,11 @@ from . import (
 )
 from .label_setting_modal import SortBySetting
 
-ANNOTATIONS_ADAPTER = (
+FS_ANNOTATIONS_ADAPTER = (
+    pydantic.TypeAdapter(list[Annotation])
+)
+
+BROWSER_ANNOTATION_ADAPTER = (
     pydantic.TypeAdapter(list[Annotation | None])
 )
 
@@ -76,8 +79,6 @@ def layout(**kwargs):
                 dcc.Store(id=ids.START_TIME_TRIGGER),
                 # Data
                 dcc.Store(id=ids.DATA_DISPLAY_CFG_DATA, storage_type='session'),
-                # TODO use a pydantic Model for this. Its not even clear what this is exactly
-                # Why is there an extra Store for this? Just update UI properties?
                 dcc.Store(id=ids.ANNOT_PROGRESS, storage_type='session'),
                 dcc.Store(id=ids.ADDED_CLASS_NAME, storage_type='session'),
 
@@ -338,11 +339,12 @@ def init(
             history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
             batch, annotations_list = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
 
-            jsonable = ANNOTATIONS_ADAPTER.dump_python(
-                annotations_list,
-                mode="json"
+            store_data[StoreKey.ANNOTATIONS_STATE.value] = (
+                FS_ANNOTATIONS_ADAPTER.dump_python(
+                    annotations_list,
+                    mode="json"
+                )
             )
-            store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
             store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
         must_query = False
     else:
@@ -389,7 +391,7 @@ def _get_annotation_context(store_data: dict, batch: Batch):
 
     idx = batch.progress
 
-    annotations_list = ANNOTATIONS_ADAPTER.validate_python(
+    annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
         store_data[StoreKey.ANNOTATIONS_STATE.value]
     )
 
@@ -486,11 +488,12 @@ def on_confirm(
     )
     annotations_list[idx] = annotation
 
-    jsonable = ANNOTATIONS_ADAPTER.dump_python(
-        annotations_list,
-        mode="json"
+    store_data[StoreKey.ANNOTATIONS_STATE.value] = (
+        BROWSER_ANNOTATION_ADAPTER.dump_python(
+            annotations_list,
+            mode="json"
+        )
     )
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
 
     annot_progress = AnnotationProgress.model_validate(annot_data)
 
@@ -525,7 +528,6 @@ def on_confirm(
     )
 
 
-# TODO there should be a seperate store for the BATCH
 @callback(
     Input(ids.UI_TRIGGER, 'data'),
     State('session-store', 'data'),
@@ -560,7 +562,7 @@ def on_ui_update(
     # Adding classes
     added_class_name: str | None,
     # Label settings
-    show_probas: bool,  # TODO this is confusing
+    show_probas: bool,
     sort_by: str,
     annot_button_ids: list,
 ):
@@ -572,7 +574,7 @@ def on_ui_update(
 
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
 
-    annotations_list = ANNOTATIONS_ADAPTER.validate_python(
+    annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
         store_data[StoreKey.ANNOTATIONS_STATE.value]
     )
     
@@ -614,7 +616,6 @@ def on_ui_update(
         data_width=w,
         data_height=h,
         annot_start_time_trigger=True,
-        was_class_added=False,
         disable_all_action_buttons=[False] * len(annot_button_ids),
         focus_trigger=ids.LABEL_SEARCH_INPUT,
         added_class_name=None,
@@ -666,67 +667,77 @@ def on_next_batch(
     if num_restorable >= batch_size:
         logging.debug15("No Active ML needed")
         # No Active ML needed just restore Batch size many samples
-        batch, annotations_list = api.restore_batch(activeml_cfg, global_history_idx, True, batch_size)
+        batch, annotations = api.restore_batch(activeml_cfg, global_history_idx, True, batch_size)
 
         # This assumes the idx is on the last of the previous batch
+        # TODO: Store global history index in brower using dcc.store and 
+        # not in fs.
         api.increment_global_history_idx(dataset_id, 1)
+
+        store_data[StoreKey.ANNOTATIONS_STATE.value] = (
+            FS_ANNOTATIONS_ADAPTER.dump_python(
+                annotations,
+                mode="json",
+            )
+        )
 
     else:
         logging.debug15("Must use active ml")
         # Active learning needed. But first restore what is left to restore
         if num_restorable > 0:
             logging.debug15(f"Can still restore {num_restorable} samples before Active ML")
-            batch_one, annotations_list_one = api.restore_batch(activeml_cfg, global_history_idx, True, num_restorable)
+            batch_one, annotations_one = api.restore_batch(activeml_cfg, global_history_idx, True, num_restorable)
 
             emb_indices_one = batch_one.emb_indices
             class_probas_one = batch_one.class_probas
-            annotations_one = annotations_list_one
             api.increment_global_history_idx(dataset_id, 1)
-        else:
-            emb_indices_one = []
-            class_probas_one = []
-            annotations_one = []
 
+            # Only the difference has to be queried
+            session_cfg.batch_size = batch_size - num_restorable
+            logging.debug15(f"Do active learning to get {session_cfg.batch_size} samples")
+
+            X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
+
+            # Remove samples from pool that have been restored. To avoid possible duplication
+            batch_two, annotations_two = api.request_query(activeml_cfg, session_cfg, X, emb_indices_one)
+
+            logging.debug15("queried batch emb indices:")
+            logging.debug15(batch_two.emb_indices)
+
+            class_probas = (
+                class_probas_one + batch_two.class_probas
+                if class_probas_one is not None and batch_two.class_probas is not None
+                else None
+            )
+
+            # Combine Batches and annotations_list
+            batch = Batch(
+                emb_indices=emb_indices_one + batch_two.emb_indices,
+                classes_sklearn=batch_two.classes_sklearn,
+                class_probas=class_probas,
+                progress=0
+            )
+            annotations = annotations_one + annotations_two
+
+        else:
             new_history_idx = api.get_num_annotated(dataset_id)
             api.set_global_history_idx(dataset_id, new_history_idx)
-        
-        # Only the difference has to be quried
-        session_cfg.batch_size = batch_size - num_restorable
-        logging.debug15(f"Do active learning to get {session_cfg.batch_size} samples")
 
-        X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
+            session_cfg.batch_size = batch_size - num_restorable
+            logging.debug15(f"Do active learning to get {session_cfg.batch_size} samples")
 
-        # Remove samples from pool that have been restored. To avoid possible duplication
-        batch_two, annotations_list_two = api.request_query(activeml_cfg, session_cfg, X, emb_indices_one)
+            X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
+            batch, annotations = api.request_query(activeml_cfg, session_cfg, X)
 
-        logging.debug15("queried batch emb indices:")
-        logging.debug15(batch_two.emb_indices)
-
-        class_probas_combined = (
-            class_probas_one + batch_two.class_probas
-            if class_probas_one is not None and batch_two.class_probas is not None
-            else None
+        store_data[StoreKey.ANNOTATIONS_STATE.value] = (
+            BROWSER_ANNOTATION_ADAPTER.dump_python(
+                annotations,
+                mode="json",
+            )
         )
-
-        # Combine Batches and annotations_list
-        batch = Batch(
-            emb_indices=emb_indices_one + batch_two.emb_indices,
-            classes_sklearn=batch_two.classes_sklearn,
-            class_probas=class_probas_combined,
-            progress=0
-        )
-
-        annotations_list = annotations_one + annotations_list_two
 
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
-
-    jsonable = ANNOTATIONS_ADAPTER.dump_python(
-        annotations_list,
-        mode="json"
-    )
-
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
-
+    
     return dict(
         store_data=store_data,
         ui_trigger=True,
@@ -762,10 +773,9 @@ def on_skip_batch(
 
     logging.debug15(session_data[StoreKey.ANNOTATIONS_STATE.value])
 
-    annotations_list = ANNOTATIONS_ADAPTER.validate_python(
+    annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
         session_data[StoreKey.ANNOTATIONS_STATE.value]
     )
-
     api.save_partial_annotations(batch, dataset_id, embedding_id, annotations_list)
 
     annot_progress = AnnotationProgress.model_validate(annot_progress)
@@ -797,7 +807,7 @@ def on_skip_batch(
 def on_back(
     clicks: None | int,
     store_data,
-    batch_size, # TODO input these are UI inputs
+    batch_size,
     annot_progress,
 ):
     end_time = datetime.now(timezone.utc)
@@ -858,14 +868,23 @@ def on_back(
 
         # Annotations can decrease if a previous annotation of was changed to SKIP
         annot_progress.num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)
-    else:
-         batch.advance(step= -1)
 
-    jsonable = ANNOTATIONS_ADAPTER.dump_python(
-        annotations_list,
-        mode="json"
-    )
-    store_data[StoreKey.ANNOTATIONS_STATE.value] = jsonable
+        store_data[StoreKey.ANNOTATIONS_STATE.value] = (
+            FS_ANNOTATIONS_ADAPTER.dump_python(
+                annotations_list,
+                mode="json"
+            )
+        )
+
+    else:
+        batch.advance(step= -1)
+
+        store_data[StoreKey.ANNOTATIONS_STATE.value] = (
+            BROWSER_ANNOTATION_ADAPTER.dump_python(
+                annotations_list,
+                mode="json"
+            )
+        )
 
     store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
     return dict(

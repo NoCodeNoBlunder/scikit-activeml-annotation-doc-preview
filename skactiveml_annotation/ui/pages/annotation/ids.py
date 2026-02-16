@@ -1,7 +1,5 @@
 from dash import ALL
 
-# TODO: Use enums to organize these ids into groups and auto assign name
-
 ANNOTATION_INIT = 'annotation-init'
 DATA_DISPLAY_CONTAINER = 'data-display-container'
 LABELS_CONTAINER = 'labels-container'
@@ -24,7 +22,6 @@ ANNOT_PROGRESS_TEXT = 'annot-progress-text'
 COMPUTING_OVERLAY = 'computing-overlay'
 
 # Data Display
-# TODO: cleanup
 DATA_PRESENTATION_SETTINGS_CONTAINER = 'data-presentation-settings-container'
 DATA_PRESENTATION_APPLY_BTN_CONTAINER = "data-presentation-apply-btn-container"
 DATA_DISPLAY_CFG_DATA = 'data-display-cfg-data'

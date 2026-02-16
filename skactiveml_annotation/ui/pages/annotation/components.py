@@ -52,10 +52,7 @@ def create_sidebar():
                                 dmc.Center(
                                     dmc.Box(
                                         id=ids.DATA_PRESENTATION_SETTINGS_CONTAINER,
-                                        # TODO why did I fix the width and heigh here?
                                         mih=15,
-                                        # w='250px',
-                                        # h='250px',
                                         my=10,
                                         # style=dict(border='4px dotted red')
                                     ),
@@ -116,7 +113,7 @@ def create_sidebar():
                                             dmc.Text(
                                                 'Write back all annotated samples in this batch. Skip the rest. '
                                                 'Then recompute next batch with current configuration. ',
-                                                maw='10vw'  # TODO hardcoded
+                                                maw='10vw'
                                             )
                                         )
                                     )
@@ -139,12 +136,6 @@ def create_sidebar():
                     gap=15,
                     mb=10
                 ),
-
-
-                # TODO: allow to switch Query Strategy during annotation.
-                # dmc.Text(
-                #     'Query Strategy'
-                # ),
             ],
             p='xs',
             # mt=15,
@@ -240,7 +231,6 @@ def create_data_display(
     w = dash.no_update
     h = dash.no_update
 
-    # TODO dont force these methods to returns stuff they dont care about
     if data_type == DataType.IMAGE:
         image_display_setting = data_display_setting.image
         rendered_data, w, h = data_display.create_image_display(human_data_path, image_display_setting, dpr)
@@ -354,25 +344,20 @@ def _sort(
     tuple[list[str], list[float]]
         The sorted class names and corresponding probabilities.
     """
-    if sort_by == SortBySetting.yaml_order:
-        # Return in YAML-defined order
-        # Need to remap from sklearn's order -> YAML order
-        mapping = {cls: i for i, cls in enumerate(classes_sklearn)}
-        sorted_indices = [mapping[cls] for cls in classes_yaml if cls in mapping]
+    match sort_by:
+        case SortBySetting.yaml_order:
+            # Return in YAML-defined order
+            # Need to remap from sklearn's order -> YAML order
+            mapping = {cls: i for i, cls in enumerate(classes_sklearn)}
+            sorted_indices = [mapping[cls] for cls in classes_yaml if cls in mapping]
 
-    elif sort_by == SortBySetting.proba:
-        if class_probas is None:
-            logging.warning("Cannot sort by predicted class probabilities as this info is not available.")
-            return classes_yaml, class_probas
+        case SortBySetting.proba:
+            sorted_indices = sorted(range(len(class_probas)), key=lambda i: class_probas[i], reverse=True)
 
-        sorted_indices = sorted(range(len(class_probas)), key=lambda i: class_probas[i], reverse=True)
-
-    elif sort_by == SortBySetting.alphabet:
-        # sklearn already ensures alphabetical order so just return as is
-        return classes_sklearn, class_probas
+        case SortBySetting.alphabet:
+            # sklearn already ensures alphabetical order so just return as is
+            return classes_sklearn, class_probas
         
-    # TODO else?
-
     return (
         [classes_sklearn[i] for i in sorted_indices],
         [class_probas[i] for i in sorted_indices]
