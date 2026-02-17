@@ -23,27 +23,25 @@ from skactiveml_annotation.core import api
 from skactiveml_annotation.util import logging
 
 def create_image_display(
-    path_to_img: Path, 
-    image_display_setting: ImageDataDisplaySetting, 
-    dpr: float
+    path_to_img: Path,
+    image_display_setting: ImageDataDisplaySetting,
+    dpr: float,
 ):
     image = pil_image.open(path_to_img).convert("RGB")
 
     rescale_factor = image_display_setting.rescale_factor
 
-    # TODO: ensure the images width is within some boundaries
-    w = int(image.width * rescale_factor)
-    h = int(image.height * rescale_factor)
+    image_widht = int(image.width * rescale_factor)
+    image_height = int(image.height * rescale_factor)
 
     image = image.resize(
-        (w, h),
+        (image_widht, image_height),
         resample=image_display_setting.resampling_method
-        # reducing_gap=4  # Only in effect when downscaling
     )
 
     # Account for screen dpr to prevent the browser from resizing the image again to avoid artifacts.
-    w = int(w / dpr)
-    h = int(h / dpr)
+    layout_widht = int(image_widht / dpr)
+    layout_height = int(image_height / dpr)
 
     ml = 0
     mt = 0
@@ -55,14 +53,15 @@ def create_image_display(
             # z=image,
         ),
         layout=go.Layout(
-            width=w,
-            height=h,
+            width=max(10, layout_widht),
+            height=max(10, layout_height),
             margin=dict(l=ml, r=mr, t=mt, b=mb, pad=0)
         )
     )
 
     fig.update_xaxes(showticklabels=False)
     fig.update_yaxes(showticklabels=False)
+    fig.update_layout(autosize=False)
 
     return (
         dcc.Graph(
@@ -80,8 +79,8 @@ def create_image_display(
                 'modeBarButtonsToRemove':['toImage'],
             },
         ),
-        w,
-        h
+        layout_widht,
+        layout_height,
     )
 
 

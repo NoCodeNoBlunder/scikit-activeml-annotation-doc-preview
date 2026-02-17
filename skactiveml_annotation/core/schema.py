@@ -27,11 +27,11 @@ class DataType(Enum):
     IMAGE = "Image"
 
 class DataTypeTarget(pydantic.BaseModel):
-    # ... tells pydantic this field is needed
+    # Tell pydantic these fields are needed
     target_: DataTypeLiteral = Field(..., alias="_target_")
     args_: list[str] = Field(..., alias="_args_")
 
-    # Tell pydantic to allow extra keys
+    # Tell pydantic to allow extra fields
     class Config:
         extra: str = "allow"
 

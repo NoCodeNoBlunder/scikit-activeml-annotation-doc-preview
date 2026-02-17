@@ -87,7 +87,6 @@ def layout(**kwargs):
                 label_setting_modal.create_label_settings_modal(),
                 auto_annotate_modal.create_auto_annotate_modal(),
 
-                # TODO: Try to use allowOptional instead
                 dmc.Box(id='label-radio'),  # avoid id error
 
                 dmc.AppShell(
@@ -332,10 +331,11 @@ def init(
     batch = Batch.from_json(batch_dict) if batch_dict is not None else None
     annot_progress = init_annot_progress(store_data)
 
+    activeml_cfg = common.compose_from_state(store_data)
+
     if annot_progress.is_all_annotated():
         if batch is None:
             # Restore batch
-            activeml_cfg = common.compose_from_state(store_data)
             history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
             batch, annotations_list = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
 
@@ -360,9 +360,7 @@ def init(
         ui_trigger = True
         query_trigger = dash.no_update
 
-    activeml_cfg = common.compose_from_state(store_data)
     data_type = activeml_cfg.dataset.data_type.instantiate()
-
     api.ensure_global_history_idx_init(activeml_cfg.dataset.id)
 
     return dict(
@@ -571,9 +569,7 @@ def on_ui_update(
 
     activeml_cfg = common.compose_from_state(store_data)
     data_type = activeml_cfg.dataset.data_type.instantiate()
-
     batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
-
     annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
         store_data[StoreKey.ANNOTATIONS_STATE.value]
     )
@@ -602,7 +598,7 @@ def on_ui_update(
 
     rendered_data, w, h = components.create_data_display(data_display_setting, data_type, human_data_path, browser_dpr)
 
-    sort_by = SortBySetting[sort_by] 
+    sort_by = SortBySetting[sort_by]
 
     # TODO how to organize this better?
     return dict(
@@ -836,16 +832,13 @@ def on_back(
 
     annotations_list[idx] = annotation
 
-    # TODO: Make a helper for this?
     if batch.progress == 0:
         logging.debug15("Have to get last batch to be able to go back.")
-        # TODO Serialize new Annotations made in current batch
         dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
         embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
         file_paths = api.get_file_paths(dataset_id, embedding_id, batch.emb_indices)
-        _ = api.update_annotations(dataset_id, file_paths, annotations_list)
+        api.update_annotations(dataset_id, file_paths, annotations_list)
 
-        # TODO this step should be done in the serialize and deserialize methods
         activeml_cfg = common.compose_from_state(store_data)
         history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
 
@@ -862,7 +855,6 @@ def on_back(
                 focus_trigger=dash.no_update,
             )
 
-        # Update the global history idx
         api.increment_global_history_idx(dataset_id, -len(batch))
         logging.debug15(f"info decrementing global idx to: {api.get_global_history_idx(dataset_id)}")
 

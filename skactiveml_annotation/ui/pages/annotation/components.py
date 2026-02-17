@@ -1,12 +1,9 @@
-# TODO: Rename these are not real components
-# It should be clear from the name if defines callbacks or no
 import logging
 from pathlib import Path
 
 import numpy as np
 
 import dash
-from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 
 from skactiveml_annotation.core.data_display_model import DataDisplaySetting
@@ -319,7 +316,6 @@ def create_label_chips(
     )
 
 
-# TODO: It might be worth to convert to numpy array honestly
 def _sort(
     classes_yaml: list[str],
     classes_sklearn: list[str],

@@ -72,31 +72,25 @@ def open_modal(
     )
 
 
-# TODO this should be a background callback
+# TODO: this should be a background callback
 @callback(
     Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
     State('session-store', 'data'),
-    State(ids.ANNOT_PROGRESS, 'data'),
     State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
     output=dict(
         auto_annot_modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
     ),
-    # output=dict(
-    #     # annot_progress=Output(ANNOT_PROGRESS, 'data', allow_duplicate=True)
-    #     # query_trigger=Output(QUERY_TRIGGER, 'data', allow_duplicate=True)
-    # ),
     prevent_initial_call=True,
 )
 def on_auto_annotate(
     click,
     session_data,
-    annot_progress,
     threshold,
 ):
     if click is None:
         raise PreventUpdate
 
-    # TODO what happens with the current batch Write back all annoted before doing it?
+    # TODO: what happens with the current batch Write back all annoted before doing it?
 
     activeml_cfg = common.compose_from_state(session_data)
     X = api.load_embeddings(
@@ -104,35 +98,13 @@ def on_auto_annotate(
         activeml_cfg.embedding.id
     )
 
-    # TODO some duplicate code
     batch_json = session_data.pop(StoreKey.BATCH_STATE.value, None)
     dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
     embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
     batch = Batch.from_json(batch_json)
-
-    # TODO updating annot_progress does not trigger ui update!
-    # num_annotated = save_partial_annotations(batch, dataset_id, embedding_id)
-    # annot_progress[AnnotProgress.PROGRESS.value] = num_annotated
 
     api.auto_annotate(X, activeml_cfg, threshold)
 
     return dict(
         auto_annot_modal_open=False,
     )
-
-    # return dict(
-    #     # query_trigger=True
-    #     # annot_progress=annot_progress
-    # )
-
-
-# Close Modal on confirm
-# TODO should the modal be closed during computation or after?
-# clientside_callback(
-#     ClientsideFunction(namespace='clientside', function_name='false'),
-#     Output(AUTO_ANNOTATE_MODAL, 'opened'),
-#     Input(AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks')
-# )
-
-
-
