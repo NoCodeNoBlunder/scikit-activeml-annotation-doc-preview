@@ -158,10 +158,9 @@ def request_query(
     X_cand, y_cand, cand_to_emb_idx = _filter_discarded_samples(X, y)
 
     logging.info("Fitting the classifier")
-    # TODO can fitting the classifier fail?
-    # TODO filter out y that appear less then 2 times.
-    # Some classifiers need at least 2 samples per class to train properly
 
+    # The model is wrapped. Rely on scikit-activeml error handling
+    # Any errors during fitting will result in fallback predictions using class label counts.
     clf.fit(X_cand, y_cand)
 
     logging.info("Querying the active ML model ...")
