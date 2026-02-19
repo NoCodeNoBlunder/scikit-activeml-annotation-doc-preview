@@ -108,8 +108,20 @@ def layout(**kwargs: object):
                     [
                         dmc.Stack(
                             [
-                                dmc.Title("Welcome to scikit-activeml-annotation", order=1),
-                                dmc.Title("Configure your annotation pipeline", order=2)
+                                dmc.Title(
+                                    "Welcome to scikit-activeml-annotation",
+                                    order=1,
+                                    style={
+                                        "textAlign": 'center',
+                                    }
+                                ),
+                                dmc.Title(
+                                    "Configure your annotation pipeline",
+                                    order=2,
+                                    style={
+                                        "textAlign": 'center',
+                                    }
+                                )
                             ],
                             align='center',
                             p='xl'
@@ -117,28 +129,46 @@ def layout(**kwargs: object):
 
                         dmc.Flex(
                             [
-                                create_stepper(),
+                                dmc.Box(
+                                    # Spacer
+                                    w="calc(50% - 275px)",
+                                ),
+                                dmc.Box(
+                                    create_stepper(),
+                                    style={
+                                        # 'border': '2px dotted blue',
+                                        'whiteSpace': 'normal',
+                                        'wordBreak': 'normal',
+                                        'overflowWrap': 'normal',
+                                    },
+                                    w="275px",
+                                    mr="md",
+                                ),
+
                                 dcc.Loading(
-                                    dmc.Container(
+                                    dmc.Box(
                                         # Current selection injected here
                                         html.Div(id=RADIO_SELECTION),  # workaround so id exists at the start
+                                        # TODO: Loading is replaced
                                         id=UI_CONTAINER,
                                         tabIndex=0, # Make Container focusable
                                         style={
-                                            "mw": "15vw",
-                                            "whiteSpace": "normal", "wordWrap": "break-word",
-                                            "outline": "none",
-                                            # 'border': '3px dotted red'
+                                            # 'border': '2px dotted blue',
+                                            'whiteSpace': 'normal',
+                                            'wordBreak': 'normal',
+                                            'overflowWrap': 'normal',
+                                            'outline': 'none',
                                         }
                                     ),
                                     type='circle',
                                     delay_hide=150,
-                                    delay_show=250  # INFO only need to show when it takes longer than 5ms.
-                                )
+                                    delay_show=250,
+                                ),
+
                             ],
-                            gap='xl',
-                            justify='center',
-                            align='flex-start',
+                            w="100%",
+                            h="60vh",
+                            # gap="xl",
                         ),
 
                         dmc.Group(
@@ -158,7 +188,10 @@ def layout(**kwargs: object):
                         )
                     ],
                     align='center',
-                    # style={'border': '2px solid gold'}
+                    w="100%",
+                    style={
+                        # 'border': '2px solid gold',
+                    }
                 )
             ],
             mt=1,
@@ -187,7 +220,8 @@ def create_step_ui(step: int, session_data):
                 *sampling_input.create_sampling_inputs(),
                 # Dummy element to ensure this id exists in the layout at the last step
                 dmc.RadioGroup([], id=RADIO_SELECTION, display='none', readOnly=True)
-            ]
+            ],
+            align="flex-start"
         )
     elif step == 5:
         return None
@@ -201,8 +235,8 @@ def create_step_ui(step: int, session_data):
         scrollbars='y',
         styles=dict(
             viewport={
-                'maxHeight': '100%',
-            }
+                'maxHeight': '90%'
+            },
         )
     )
 
@@ -211,7 +245,7 @@ def create_stepper():
     return (
         dmc.Stepper(
             [
-                dmc.StepperStep(id={'type': 'stepper-step', 'index': 0}, label="Dataset", description="Select a Dataset"),  # loading=True),
+                dmc.StepperStep(id={'type': 'stepper-step', 'index': 0}, label="Dataset", description="Select a Dataset"),
                 dmc.StepperStep(id={'type': 'stepper-step', 'index': 1}, label="Embedding", description="Select embedding method"),
                 dmc.StepperStep(id={'type': 'stepper-step', 'index': 2}, label="Query Strategy", description="Select a Query Strategy"),
                 dmc.StepperStep(id={'type': 'stepper-step', 'index': 3}, label="Model", description="Select a model"),
@@ -223,6 +257,8 @@ def create_stepper():
             iconSize=40,
             size='xl',
             # style={'border': '2px solid red'},
+            mt='xs',
+            # w="50%",
             allowNextStepsSelect=False
         )
     )
