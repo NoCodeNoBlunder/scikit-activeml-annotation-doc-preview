@@ -19,6 +19,13 @@ import dash_loading_spinners
 from skactiveml_annotation.ui import clientside_callbacks
 from skactiveml_annotation.ui.components import navbar
 import skactiveml_annotation.paths as sap
+from skactiveml_annotation.ui import hotkeys
+from skactiveml_annotation.ui.pages import (
+    annotation,
+    home,
+    embedding,
+    hotkeys_cfg,
+)
 
 cache = diskcache.Cache(sap.BACKGROUND_CALLBACK_CACHE_PATH)
 background_callback_manager = DiskcacheManager(cache)
@@ -43,8 +50,18 @@ def create_app() -> Dash:
     app.layout = layout
     
     clientside_callbacks.register()
+    register_pages(app)
 
     return app
+
+
+def register_pages(app):
+    home.layout.register(app)
+    annotation.layout.register(app)
+    embedding.layout.register(app)
+    hotkeys_cfg.layout.register(app)
+
+    hotkeys.register_callbacks(app)
 
 
 def layout(**kwargs):

@@ -1,9 +1,9 @@
 from dash import (
     ALL,
+    Dash,
     Input,
     Output,
     State,
-    callback,
 )
 
 from dash.exceptions import PreventUpdate
@@ -13,7 +13,6 @@ import dash_mantine_components as dmc
 from PIL.Image import Resampling as PIL_Resampling
 import pydantic
 
-from . import ids
 from skactiveml_annotation.ui.pages.annotation import actions
 from skactiveml_annotation.core.schema import (
     DataType,
@@ -27,6 +26,8 @@ from skactiveml_annotation.core.data_display_model import (
     AudioDataDisplaySetting,
 )
 
+from . import ids
+
 
 def create_data_presentation_settings(data_type: DataType):
     if data_type == DataType.IMAGE:
@@ -36,12 +37,11 @@ def create_data_presentation_settings(data_type: DataType):
     else:
         return audio_presentation_settings()
 
-
 # Image
 def image_presentation_settings():
     default_image_setting = ImageDataDisplaySetting()
 
-    return \
+    return (
         dmc.Stack(
             [
                 dmc.NumberInput(
@@ -81,13 +81,14 @@ def image_presentation_settings():
             ],
             align='start'
         )
+    )
 
 
 # Text
 def text_presentation_settings():
     default_text_setting = TextDataDisplaySetting()
 
-    return \
+    return (
         dmc.Stack(
             [
                 dmc.NumberInput(
@@ -126,13 +127,14 @@ def text_presentation_settings():
             ],
             align='start'
         )
+    )
 
 
 # Audio
 def audio_presentation_settings():
     default_audio_setting = AudioDataDisplaySetting()
 
-    return \
+    return (
         dmc.Stack(
             [
                 dmc.Checkbox(
@@ -170,42 +172,46 @@ def audio_presentation_settings():
             ],
             align='start'
         )
-
-
-@callback(
-    Input(actions.APPLY.btn_id, 'n_clicks'),
-    State(ids.DATA_DISPLAY_CFG_DATA, 'data'),
-    # Pattern Matching ids
-    State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'checked', 'modality': ALL, 'index': ALL}, 'id'),
-    State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'checked', 'modality': ALL, 'index': ALL}, 'checked'),
-    State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': ALL, 'index': ALL}, 'id'),
-    State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': ALL, 'index': ALL}, 'value'),
-    output=dict(
-        ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
-        display_settings=Output(ids.DATA_DISPLAY_CFG_DATA, 'data', allow_duplicate=True),
-    ),
-    prevent_initial_call=True,
-)
-def on_apply_data_presentation_settings(
-    n_clicks: int | None,
-    display_settings_json: dict,
-    checked_ids: list[dict[str, str]],
-    checked_values: list[bool],
-    value_ids: list[dict[str, str]],
-    value_values: list[str | bool | int | float],
-):
-    if n_clicks is None:
-        raise PreventUpdate
-
-    display_settings = DataDisplaySetting.model_validate(display_settings_json)
-
-    _apply_updates(display_settings, checked_ids, checked_values)
-    _apply_updates(display_settings, value_ids, value_values)
-
-    return dict(
-        ui_trigger=True,
-        display_settings=display_settings.model_dump()
     )
+
+
+def register_callbacks(app: Dash):
+    @app.callback(
+        Input(actions.APPLY.btn_id, 'n_clicks'),
+        State(ids.DATA_DISPLAY_CFG_DATA, 'data'),
+        # Pattern Matching ids
+        State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'checked', 'modality': ALL, 'index': ALL}, 'id'),
+        State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'checked', 'modality': ALL, 'index': ALL}, 'checked'),
+        State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': ALL, 'index': ALL}, 'id'),
+        State({'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': ALL, 'index': ALL}, 'value'),
+        output=dict(
+            ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
+            display_settings=Output(ids.DATA_DISPLAY_CFG_DATA, 'data', allow_duplicate=True),
+        ),
+        prevent_initial_call=True,
+    )
+    def on_apply_data_presentation_settings(
+        n_clicks: int | None,
+        display_settings_json: dict,
+        checked_ids: list[dict[str, str]],
+        checked_values: list[bool],
+        value_ids: list[dict[str, str]],
+        value_values: list[str | bool | int | float],
+    ):
+        if n_clicks is None:
+            raise PreventUpdate
+
+        display_settings = DataDisplaySetting.model_validate(display_settings_json)
+
+        _apply_updates(display_settings, checked_ids, checked_values)
+        _apply_updates(display_settings, value_ids, value_values)
+
+        return dict(
+            ui_trigger=True,
+            display_settings=display_settings.model_dump()
+        )
+    _ = on_apply_data_presentation_settings
+
 
 
 def _apply_updates(

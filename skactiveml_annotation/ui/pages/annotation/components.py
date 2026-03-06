@@ -9,17 +9,21 @@ import dash_mantine_components as dmc
 from skactiveml_annotation.core.data_display_model import DataDisplaySetting
 from skactiveml_annotation.core.schema import (
     Annotation,
-    Batch, 
-    DataType, 
+    Batch,
+    DataType,
     MISSING_LABEL_MARKER,
 )
 from skactiveml_annotation.ui.components import sampling_input
 
-from . import ids
-from . import data_display
+from . import (
+    ids,
+    actions,
+    data_display,
+)
 from .label_setting_modal import SortBySetting
-from . import actions
 
+
+# TODO: MOve this into layout?
 def create_sidebar():
     return (
         dmc.Stack(

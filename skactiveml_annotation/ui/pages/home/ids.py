@@ -1,0 +1,6 @@
+CONFIRM_BUTTON = 'confirm_button'
+BACK_BUTTON = 'back_button'
+RADIO_SELECTION = 'radio-selection'
+NEXT_PAGE_TRIGGER = 'next-page-trigger'
+STEPPER = 'stepper'
+UI_CONTAINER = 'ui-container'

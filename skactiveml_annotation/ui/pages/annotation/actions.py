@@ -1,9 +1,8 @@
 from dash import (
     ALL,
-    Output,
-    Input, 
-    State, 
-    callback,
+    Dash,
+    Input,
+    State,
 )
 
 from skactiveml_annotation.ui import common
@@ -14,123 +13,118 @@ from skactiveml_annotation.ui.hotkeys import (
     register_default_keybinds,
 )
 
-# ---------------------------
-# Annotations Page Actions
-# ---------------------------
-CONFIRM = register_action(
-    # INFO: Page.[Main, Modal].Action
-    ButtonAction(
-        "Annotation.Main.Confirm",
-        {'type': 'action-button', 'index': 'confirm'},
-        "Confirm",
-        "Confirm label selection for current sample and move on to the next sample"
-    ),
+CONFIRM = ButtonAction(
+    # Page.[Main, Modal].Action
+    "Annotation.Main.Confirm",
+    {'type': 'action-button', 'index': 'confirm'},
+    "Confirm",
+    "Confirm label selection for current sample and move on to the next sample"
 )
 
-BACK = register_action(
-    ButtonAction(
-        "Annotation.Main.Back",
-        {'type': 'action-button', 'index': 'back'},
-        "Back",
-        "Go back to previous sample"
-    ),
+
+BACK = ButtonAction(
+    "Annotation.Main.Back",
+    {'type': 'action-button', 'index': 'back'},
+    "Back",
+    "Go back to previous sample"
 )
 
-DISCARD = register_action(
-    ButtonAction(
-        "Annotation.Main.Discard",
-        {'type': 'action-button', 'index': 'discard'},
-        "Discard",
-        "Discard the current sample essentially marking it as an outlier"
-    ),
+DISCARD = ButtonAction(
+    "Annotation.Main.Discard",
+    {'type': 'action-button', 'index': 'discard'},
+    "Discard",
+    "Discard the current sample essentially marking it as an outlier"
 )
 
-SKIP = register_action(
-    ButtonAction(
-        "Annotation.Main.Skip",
-        {'type': 'action-button', 'index': 'skip'},
-        "Skip",
-        "Skip the sample if you are unsure. This sample might be selected again."
-    ),
+SKIP = ButtonAction(
+    "Annotation.Main.Skip",
+    {'type': 'action-button', 'index': 'skip'},
+    "Skip",
+    "Skip the sample if you are unsure. This sample might be selected again."
 )
 
-APPLY = register_action(
-    ButtonAction(
-        "Annotation.Main.Apply",
-        "apply-btn",
-        "Apply",
-    ),
+APPLY = ButtonAction(
+    "Annotation.Main.Apply",
+    "apply-btn",
+    "Apply",
 )
 
-OPEN_LABEL_SETTINGS = register_action(
-    ButtonAction(
-        "Annotation.Main.OpenLabelSettings",
-        "label-setting-btn",
-        "Open Label Settings Modal",
-        ""
-    ),
+OPEN_LABEL_SETTINGS = ButtonAction(
+    "Annotation.Main.OpenLabelSettings",
+    "label-setting-btn",
+    "Open Label Settings Modal",
 )
 
-SKIP_BATCH = register_action(
-    ButtonAction(
-        "Annotation.Main.SkipBatch",
-        "skip-batch-button",
-        "Skip Batch",
-        ""
-    ),
+SKIP_BATCH = ButtonAction(
+    "Annotation.Main.SkipBatch",
+    "skip-batch-button",
+    "Skip Batch",
 )
 
 # --- Modal Actions ---
-CONFIRM_MODAL_ANNOTATION = register_action(
-    ButtonAction(
-        "Annotation.LabelSettingsModal.Confirm",
-        "label-setting-confirm-btn",
-        "Confirm Modal",
-        "Confirm the modal"
-    ),
+CONFIRM_MODAL_ANNOTATION = ButtonAction(
+    "Annotation.LabelSettingsModal.Confirm",
+    "label-setting-confirm-btn",
+    "Confirm Modal",
+    "Confirm the modal"
 )
 
 
-# --- Default Keybinds ---
-DEFAULT_KEYBINDS_ANNOTATION = register_default_keybinds(
-    "Annotation",
-    {
-        "Main": {
-            "Enter": CONFIRM.action_id,
-            "Backspace+Alt+Control": BACK.action_id,
-            "D+Alt+Control": DISCARD.action_id,
-            "S+Alt+Control": SKIP.action_id,
-            "L+Alt+Control": OPEN_LABEL_SETTINGS.action_id,
-            "B+Alt+Control": SKIP_BATCH.action_id,
-            "A+Alt+Control": APPLY.action_id,
-        },
-        "LabelSettingsModal": {
-            "Enter": CONFIRM_MODAL_ANNOTATION.action_id,
-        },
-    }
-)
+ALL_ACTIONS = [
+    CONFIRM,
+    BACK,
+    DISCARD,
+    SKIP,
+    APPLY,
+    OPEN_LABEL_SETTINGS,
+    SKIP_BATCH,
+    CONFIRM_MODAL_ANNOTATION,
+]
 
 
-@callback(
-    Input("keyboard", "n_keydowns"),
-    State("keyboard", "keydown"),
-    State("keymapping-cfg", "data"),
-    State({ 'type': 'modal', 'index': ALL}, "id"),
-    State({ 'type': 'modal', 'index': ALL}, "opened"),
-    prevent_initial_call=True
-)
-def on_annotation_key_pressed(
-    trigger,
-    key_event,
-    key_mappings_json,
-    modal_ids,
-    modal_open_values,
-):
-    modal_id = "Main"
-    for id, is_open in zip(modal_ids, modal_open_values):
-        if is_open:
-            modal_id = id['index']
-            break
+def register(app: Dash):
+    for action in ALL_ACTIONS:
+        register_action(action)
 
-    hotkey_cfg = common.try_deserialize_hotkey_cfg(key_mappings_json)
-    on_key_pressed_handler(trigger, key_event, hotkey_cfg, "Annotation", modal_id)
+    register_default_keybinds(
+        "Annotation",
+        {
+            "Main": {
+                "Enter": CONFIRM.action_id,
+                "Backspace+Alt+Control": BACK.action_id,
+                "D+Alt+Control": DISCARD.action_id,
+                "S+Alt+Control": SKIP.action_id,
+                "L+Alt+Control": OPEN_LABEL_SETTINGS.action_id,
+                "B+Alt+Control": SKIP_BATCH.action_id,
+                "A+Alt+Control": APPLY.action_id,
+            },
+            "LabelSettingsModal": {
+                "Enter": CONFIRM_MODAL_ANNOTATION.action_id,
+            },
+        }
+    )
+
+    @app.callback(
+        Input("keyboard", "n_keydowns"),
+        State("keyboard", "keydown"),
+        State("keymapping-cfg", "data"),
+        State({ 'type': 'modal', 'index': ALL}, "id"),
+        State({ 'type': 'modal', 'index': ALL}, "opened"),
+        prevent_initial_call=True
+    )
+    def on_key_pressed(
+        trigger,
+        key_event,
+        key_mappings_json,
+        modal_ids,
+        modal_open_values,
+    ):
+        modal_id = "Main"
+        for id, is_open in zip(modal_ids, modal_open_values):
+            if is_open:
+                modal_id = id['index']
+                break
+
+        hotkey_cfg = common.try_deserialize_hotkey_cfg(key_mappings_json)
+        on_key_pressed_handler(trigger, key_event, hotkey_cfg, "Annotation", modal_id)
+    _ = on_key_pressed

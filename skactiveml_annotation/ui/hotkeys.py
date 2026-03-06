@@ -6,17 +6,13 @@ from typing import Final
 import pydantic
 
 from dash import (
+    Dash,
     Output,
-    Input, 
-    State, 
-    callback,
+    Input,
+    State,
     set_props,
-    ClientsideFunction,
-    clientside_callback,
 )
 from dash.exceptions import PreventUpdate
-
-from dash_extensions import Keyboard
 
 from skactiveml_annotation.util import logging
 
@@ -69,6 +65,51 @@ def register_default_keybinds(page: str, page_bindings: dict[str, dict]) -> dict
 
 def button_actions() -> dict[str, ButtonAction]:
     return __button_actions
+
+
+def register_callbacks(app: Dash):
+    @app.callback(
+        Input("url_home_init", "pathname"),
+        State("keymapping-cfg", "data"),
+        output=dict(
+            hotkey_cfg=Output("keymapping-cfg", "data")
+        )
+    )
+    def ensure_hotkeys_initialized(
+        _,
+        hotkey_cfg_json,
+    ):
+        if hotkey_cfg_json is None:
+            logging.debug15("Initializing hotkeys to default bindings.")
+            logging.debug15(DEFAULT_KEYBINDS)
+            return dict(
+                hotkey_cfg=HotkeyConfig().model_dump()
+            )
+
+        try:
+            hotkey_cfg = HotkeyConfig.model_validate(hotkey_cfg_json)
+        except pydantic.ValidationError:
+            logging.error(
+                "Invalid hotkey configuration json; using defaults instead",
+                exc_info=True
+            )
+            return dict(
+                hotkey_cfg=HotkeyConfig().model_dump()
+            )
+
+        if hotkey_cfg.is_user_defined:
+            # Dont override user defined hotkeys
+            raise PreventUpdate
+
+        # Updating non-user defined hotkeys to latest defaults
+        logging.debug15("Updating non-user-defined hotkeys to latest defaults")
+        logging.debug15(DEFAULT_KEYBINDS)
+        hotkey_cfg = HotkeyConfig()
+
+        return dict(
+            hotkey_cfg=hotkey_cfg.model_dump()
+        )
+    _ = ensure_hotkeys_initialized
 
 
 def on_key_pressed_handler(
@@ -163,49 +204,6 @@ def normalize_hotkey_str(key_combo: str) -> str:
     if len(parts) > 1:
         return key + "+" + "+".join(mod_keys)
     return key
-
-# --- Callbacks ---
-@callback(
-    Input("url_home_init", "pathname"),
-    State("keymapping-cfg", "data"),
-    output=dict(
-        hotkey_cfg=Output("keymapping-cfg", "data")
-    )
-)
-def ensure_hotkeys_initialized(
-    _,
-    hotkey_cfg_json,
-):
-    if hotkey_cfg_json is None:
-        logging.debug15("Initializing hotkeys to default bindings.")
-        logging.debug15(DEFAULT_KEYBINDS)
-        return dict(
-            hotkey_cfg=HotkeyConfig().model_dump()
-        )
-
-    try:
-        hotkey_cfg = HotkeyConfig.model_validate(hotkey_cfg_json)
-    except pydantic.ValidationError:
-        logging.error(
-            "Invalid hotkey configuration json; using defaults instead",
-            exc_info=True
-        )
-        return dict(
-            hotkey_cfg=HotkeyConfig().model_dump()
-        )
-
-    if hotkey_cfg.is_user_defined:
-        # Dont override user defined hotkeys
-        raise PreventUpdate
-
-    # Updating non-user defined hotkeys to latest defaults
-    logging.debug15("Updating non-user-defined hotkeys to latest defaults")
-    logging.debug15(DEFAULT_KEYBINDS)
-    hotkey_cfg = HotkeyConfig()
-
-    return dict(
-        hotkey_cfg=hotkey_cfg.model_dump()
-    )
 
 
 # --- Helper Funcions ---

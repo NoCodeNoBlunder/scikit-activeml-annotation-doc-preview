@@ -1,4 +1,5 @@
 from dash import (
+    Dash,
     Input,
     Output,
     State,
@@ -54,57 +55,62 @@ def create_auto_annotate_modal():
     )
 
 
-@callback(
-    Input(ids.AUTO_ANNOTATE_BTN, 'n_clicks'),
-    output=dict(
-        modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
-    ),
-    prevent_initial_call=True
-)
-def open_modal(
-    clicks
-):
-    if clicks is None:
-        raise PreventUpdate
-
-    return dict(
-        modal_open=True
+def register_callbacks(app: Dash):
+    @app.callback(
+        Input(ids.AUTO_ANNOTATE_BTN, 'n_clicks'),
+        output=dict(
+            modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
+        ),
+        prevent_initial_call=True
     )
+    def open_modal(
+        clicks
+    ):
+        if clicks is None:
+            raise PreventUpdate
+
+        return dict(
+            modal_open=True
+        )
+    _ = open_modal
 
 
-# TODO: this should be a background callback
-@callback(
-    Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
-    State('session-store', 'data'),
-    State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
-    output=dict(
-        auto_annot_modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
-    ),
-    prevent_initial_call=True,
-)
-def on_auto_annotate(
-    click,
-    session_data,
-    threshold,
-):
-    if click is None:
-        raise PreventUpdate
-
-    # TODO: what happens with the current batch Write back all annoted before doing it?
-
-    activeml_cfg = common.compose_from_state(session_data)
-    X = api.load_embeddings(
-        activeml_cfg.dataset.id,
-        activeml_cfg.embedding.id
+    # TODO: this should be a background callback
+    @app.callback(
+        Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
+        State('session-store', 'data'),
+        State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
+        output=dict(
+            auto_annot_modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
+        ),
+        prevent_initial_call=True,
+        background=True,
     )
+    def on_auto_annotate(
+        click,
+        session_data,
+        threshold,
+    ):
+        if click is None:
+            raise PreventUpdate
 
-    batch_json = session_data.pop(StoreKey.BATCH_STATE.value, None)
-    dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
-    embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
-    batch = Batch.from_json(batch_json)
+        print("START WORKING ON AUTO ANNOTATE")
+        # TODO: what happens with the current batch Write back all annoted before doing it?
 
-    api.auto_annotate(X, activeml_cfg, threshold)
+        activeml_cfg = common.compose_from_state(session_data)
+        X = api.load_embeddings(
+            activeml_cfg.dataset.id,
+            activeml_cfg.embedding.id
+        )
 
-    return dict(
-        auto_annot_modal_open=False,
-    )
+        batch_json = session_data.pop(StoreKey.BATCH_STATE.value, None)
+        dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
+        embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
+        batch = Batch.from_json(batch_json)
+
+        api.auto_annotate(X, activeml_cfg, threshold)
+
+        return dict(
+            auto_annot_modal_open=False,
+        )
+    _ = on_auto_annotate
