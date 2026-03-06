@@ -330,16 +330,14 @@ def auto_annotate(
 
     model_cfg = cfg.model
     if model_cfg is None:
-        # TODO use estimator to have more accurate terminology
-        logging.warning("Cannot auto complete as there is no estimator selected!")
+        logging.warning("Cannot auto complete as there is no classifier selected!")
         return
 
     random_state = np.random.RandomState(cfg.random_seed)
-    estimator = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
+    clf = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
 
     # Fit classifier on samples not marked as discarded
     X_cand, y_cand, _ = _filter_discarded_samples(X, y)
-    clf = estimator
     clf.fit(X_cand, y_cand)
 
     # Auto Annotate all samples that were not annotated and where the 
@@ -617,8 +615,8 @@ def _load_labels_as_np(y: np.ndarray, dataset_id: str):
     y[emb_indices] = labels
 
 
-def _estimator_accepts_random(est_cls) -> bool:
-    sig = inspect.signature(est_cls.__init__)
+def _clf_accepts_random(clf_cls) -> bool:
+    sig = inspect.signature(clf_cls.__init__)
     return "random_state" in sig.parameters
 
 
@@ -648,29 +646,29 @@ def _build_activeml_classifier(
     # n_classes = len(dataset_cfg.classes)
     # classes = np.arange(n_classes)
 
-    est_cls = model_cfg.definition.target_
+    clf_cls = model_cfg.definition.target_
 
     kwargs = {}
-    if _estimator_accepts_random(est_cls):
+    if _clf_accepts_random(clf_cls):
         kwargs['random_state'] = random_state
 
-    est = model_cfg.definition.instantiate(**kwargs)
+    clf = model_cfg.definition.instantiate(**kwargs)
 
-    if isinstance(est, SkactivemlClassifier):
+    if isinstance(clf, SkactivemlClassifier):
         # Classifier is already wrapped aka supports missing labels
         # assigning a string for missing_label is valid from the documentation.
-        est.missing_label=MISSING_LABEL_MARKER  # pyright: ignore[reportAttributeAccessIssue]
-        return est
-    elif isinstance(est, sklearn.base.ClassifierMixin):
-        wrapped_est = SklearnClassifier(
-            estimator=est,
+        clf.missing_label=MISSING_LABEL_MARKER  # pyright: ignore[reportAttributeAccessIssue]
+        return clf
+    elif isinstance(clf, sklearn.base.ClassifierMixin):
+        wrapped_clf = SklearnClassifier(
+            estimator=clf,
             classes=classes,
             random_state=random_state,
             missing_label=MISSING_LABEL_MARKER,  # pyright: ignore[reportArgumentType]
         )
-        return wrapped_est
+        return wrapped_clf
     else:
-        raise RuntimeError(f"Estimator is not a sklearn ClassifierMixin")
+        raise RuntimeError(f"Classifer is not a sklearn ClassifierMixin")
 
 
 def _filter_kwargs(func: QueryFunc, **kwargs) -> QueryFunc:
@@ -692,7 +690,7 @@ def _setup_query(cfg: ActiveMlConfig, session_cfg: SessionConfig) -> tuple[Query
     random_state = np.random.RandomState(cfg.random_seed)
 
     model_cfg = cfg.model
-    estimator = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
+    clf = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
 
     # max_candidates for subsampling.
     qs = cfg.query_strategy.definition.instantiate(
@@ -710,9 +708,9 @@ def _setup_query(cfg: ActiveMlConfig, session_cfg: SessionConfig) -> tuple[Query
         )
 
     # Dont fit classifier here to prevent fitting twice
-    query_func = _filter_kwargs(qs.query, batch_size=session_cfg.batch_size, clf=estimator, fit_clf=False,
-                                          discriminator=estimator)
-    return query_func, estimator
+    query_func = _filter_kwargs(qs.query, batch_size=session_cfg.batch_size, clf=clf, fit_clf=False,
+                                          discriminator=clf)
+    return query_func, clf
 
 
 def _normalize_and_validate_paths(
@@ -874,20 +872,20 @@ def restore_batch(
     
     model_cfg = cfg.model
     random_state = np.random.RandomState(cfg.random_seed)
-    estimator = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
+    clf = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
 
     X = load_embeddings(cfg.dataset.id, cfg.embedding.id)
     y = _load_or_init_annotations(X, cfg.dataset)
     X_cand, y_cand, _ = _filter_discarded_samples(X, y)
 
-    estimator.fit(X_cand, y_cand)
-    class_probas = estimator.predict_proba(X[emb_indices])
+    clf.fit(X_cand, y_cand)
+    class_probas = clf.predict_proba(X[emb_indices])
 
     return (
         Batch(
             emb_indices=emb_indices,
             class_probas=class_probas.tolist(),
-            classes_sklearn=_get_sklearn_classes(estimator),
+            classes_sklearn=_get_sklearn_classes(clf),
             progress=0 if restore_forward else len(emb_indices) - 1
         ),
         annotations
