@@ -10,7 +10,7 @@ from skactiveml_annotation.core.data_display_model import DataDisplaySetting
 from skactiveml_annotation.core.schema import (
     Annotation,
     Batch,
-    DataType,
+    Modality,
     MISSING_LABEL_MARKER,
 )
 from skactiveml_annotation.ui.components import sampling_input
@@ -23,7 +23,6 @@ from . import (
 from .label_setting_modal import SortBySetting
 
 
-# TODO: MOve this into layout?
 def create_sidebar():
     return (
         dmc.Stack(
@@ -225,17 +224,17 @@ def create_progress_bar(progress=0):
 
 def create_data_display(
     data_display_setting: DataDisplaySetting,
-    data_type: DataType, 
-    human_data_path: Path, 
-    dpr: float
+    modality: Modality,
+    human_data_path: Path,
+    dpr: float,
 ):
     w = dash.no_update
     h = dash.no_update
 
-    if data_type == DataType.IMAGE:
+    if modality == Modality.IMAGE:
         image_display_setting = data_display_setting.image
         rendered_data, w, h = data_display.create_image_display(human_data_path, image_display_setting, dpr)
-    elif data_type == DataType.TEXT:
+    elif modality == Modality.TEXT:
         text_display_setting = data_display_setting.text
         rendered_data = data_display.create_text_display(human_data_path, text_display_setting)
     else:

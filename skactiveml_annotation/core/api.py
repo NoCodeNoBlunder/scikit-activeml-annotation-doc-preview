@@ -71,6 +71,11 @@ def get_query_cfg_from_id(query_id: str) -> QueryStrategyConfig:
     path = sap.QS_CONFIG_PATH / f'{query_id}.yaml'
     return deserialize.parse_yaml_file(path, QueryStrategyConfig)
 
+def get_dataset_cfg_from_id(id: str) -> DatasetConfig:
+    path = sap.DATA_CONFIG_PATH / f'{id}.yaml'
+    return deserialize.parse_yaml_file(path, DatasetConfig)
+
+
 def get_dataset_cfg_from_path(path: Path) -> DatasetConfig:
     return deserialize.parse_yaml_file(path, DatasetConfig)
 

@@ -265,7 +265,7 @@ def _create_dataset_radio_item(cfg: DatasetConfig, cfg_display: str):
 
 def _create_dataset_selection(preselect):
     dataset_options = api.get_dataset_config_options()
-    data = [(cfg, f'{cfg.display_name} - ({cfg.data_type.instantiate().value})')
+    data = [(cfg, f'{cfg.display_name} - ({cfg.modality.value})')
             for cfg in dataset_options]
 
     # TODO: Make it so the first none disabled element is preselected by default
@@ -292,8 +292,15 @@ def _create_dataset_selection(preselect):
 
 
 def _create_embedding_radio_group(session_data):
-    # TODO only display embeddings that are valid for the selected dataset
-    options = api.get_embedding_config_options()
+    dataset_cfg_id = session_data[StoreKey.DATASET_SELECTION.value]
+    modality = api.get_dataset_cfg_from_id(dataset_cfg_id).modality
+
+    # Only show embedding methods applicable to the modality of the dataset
+    options = [
+        emb for emb in api.get_embedding_config_options()
+        if modality in emb.modalities
+    ]
+
     formatted_options = [(cfg.id, cfg.display_name) for cfg in options]
 
     preselect = session_data.get(StoreKey.EMBEDDING_SELECTION.value)

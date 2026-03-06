@@ -110,14 +110,14 @@ def register(app: Dash):
             ui_trigger = True
             query_trigger = dash.no_update
 
-        data_type = activeml_cfg.dataset.data_type.instantiate()
+        modality = activeml_cfg.dataset.modality
         api.ensure_global_history_idx_init(activeml_cfg.dataset.id)
 
         return dict(
             ui_trigger=ui_trigger,
             query_trigger=query_trigger,
             annot_progress=annot_progress.model_dump(),
-            data_presentation_setting_children=data_presentation_settings.create_data_presentation_settings(data_type),
+            data_presentation_setting_children=data_presentation_settings.create_data_presentation_settings(modality),
             session_data=store_data,
         )
     _ = init
@@ -284,7 +284,7 @@ def register(app: Dash):
             raise PreventUpdate
 
         activeml_cfg = common.compose_from_state(store_data)
-        data_type = activeml_cfg.dataset.data_type.instantiate()
+        modality = activeml_cfg.dataset.modality
         batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
         annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
             store_data[StoreKey.ANNOTATIONS_STATE.value]
@@ -312,7 +312,7 @@ def register(app: Dash):
                 logging.error(f"Data Presentation settings are expected to be valid here but are invalid: {e}")
                 raise PreventUpdate
 
-        rendered_data, w, h = components.create_data_display(data_display_setting, data_type, human_data_path, browser_dpr)
+        rendered_data, w, h = components.create_data_display(data_display_setting, modality, human_data_path, browser_dpr)
 
         sort_by = SortBySetting[sort_by]
 

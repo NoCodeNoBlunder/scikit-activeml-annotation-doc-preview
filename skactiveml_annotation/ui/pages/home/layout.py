@@ -82,7 +82,6 @@ def _layout(**kwargs: object):
                                     dmc.Box(
                                         # Current selection injected here
                                         html.Div(id=ids.RADIO_SELECTION),  # workaround so id exists at the start
-                                        # TODO: Loading is replaced
                                         id=ids.UI_CONTAINER,
                                         tabIndex=0, # Make Container focusable
                                         style={

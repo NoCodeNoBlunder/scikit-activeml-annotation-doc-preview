@@ -2,7 +2,7 @@ import json
 from enum import Enum
 from dataclasses import dataclass, asdict
 import logging
-from typing import Any, Literal, TypeVar 
+from typing import Any, TypeVar
 
 import hydra
 
@@ -17,26 +17,13 @@ from skactiveml_annotation.embedding.base import EmbeddingBaseAdapter
 MISSING_LABEL_MARKER = 'MISSING_LABEL'
 DISCARD_MARKER = 'DISCARDED'
 
-DataTypeLiteral = Literal["skactiveml_annotation.core.schema.DataType"] 
 
 T = TypeVar("T")
 
-class DataType(Enum):
+class Modality(Enum):
     AUDIO = "Audio"
     TEXT = "Text"
     IMAGE = "Image"
-
-class DataTypeTarget(pydantic.BaseModel):
-    # Tell pydantic these fields are needed
-    target_: DataTypeLiteral = Field(..., alias="_target_")
-    args_: list[str] = Field(..., alias="_args_")
-
-    # Tell pydantic to allow extra fields
-    class Config:
-        extra: str = "allow"
-
-    def instantiate(self, **kwargs: Any) -> DataType:
-        return _instantiate(self, DataType, **kwargs)
 
 
 class QueryStrategyTarget(pydantic.BaseModel):
@@ -48,6 +35,7 @@ class QueryStrategyTarget(pydantic.BaseModel):
     def instantiate(self, **kwargs: Any) -> SingleAnnotatorPoolQueryStrategy:
         return _instantiate(self, SingleAnnotatorPoolQueryStrategy, **kwargs)
 
+
 class ModelTarget(pydantic.BaseModel):
     target_: str = Field(..., alias="_target_")
 
@@ -56,6 +44,7 @@ class ModelTarget(pydantic.BaseModel):
 
     def instantiate(self, **kwargs: Any) -> ClassifierMixin:
         return _instantiate(self, ClassifierMixin, **kwargs)
+
 
 class EmbeddingTarget(pydantic.BaseModel):
     target_: str = Field(..., alias="_target_")
@@ -66,10 +55,12 @@ class EmbeddingTarget(pydantic.BaseModel):
     def instantiate(self, **kwargs: Any) -> EmbeddingBaseAdapter:
         return _instantiate(self, EmbeddingBaseAdapter, **kwargs)
 
+
 class EmbeddingConfig(pydantic.BaseModel):
     id: str
     display_name: str
-    definition: EmbeddingTarget 
+    definition: EmbeddingTarget
+    modalities: list[Modality]
 
 
 class DatasetConfig(pydantic.BaseModel):
@@ -77,7 +68,7 @@ class DatasetConfig(pydantic.BaseModel):
     display_name: str
     classes: list[str]
     data_path: str
-    data_type: DataTypeTarget
+    modality: Modality
 
 
 class ModelConfig(pydantic.BaseModel):
@@ -240,5 +231,5 @@ class AnnotationProgress(pydantic.BaseModel):
 
 class AutomatedAnnotation(pydantic.BaseModel):
     embedding_idx: int
-    label: int
+    label: str
     confidence: float

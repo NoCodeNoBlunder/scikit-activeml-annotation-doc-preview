@@ -15,7 +15,7 @@ import pydantic
 
 from skactiveml_annotation.ui.pages.annotation import actions
 from skactiveml_annotation.core.schema import (
-    DataType,
+    Modality,
 )
 
 from skactiveml_annotation.util import logging
@@ -29,10 +29,10 @@ from skactiveml_annotation.core.data_display_model import (
 from . import ids
 
 
-def create_data_presentation_settings(data_type: DataType):
-    if data_type == DataType.IMAGE:
+def create_data_presentation_settings(modality: Modality):
+    if modality == Modality.IMAGE:
         return image_presentation_settings()
-    elif data_type == DataType.TEXT:
+    elif modality == Modality.TEXT:
         return text_presentation_settings()
     else:
         return audio_presentation_settings()
