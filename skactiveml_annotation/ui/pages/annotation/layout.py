@@ -18,7 +18,7 @@ from . import (
     components,
     auto_annotate_modal,
     label_setting_modal,
-    data_presentation_settings,
+    modality,
 )
 
 
@@ -34,7 +34,7 @@ def register(app: Dash):
     callbacks.register(app)
     label_setting_modal.register_callbacks(app)
     auto_annotate_modal.register_callbacks(app)
-    data_presentation_settings.register_callbacks(app)
+    modality.register_callbacks(app)
 
 
 def _layout(**kwargs):

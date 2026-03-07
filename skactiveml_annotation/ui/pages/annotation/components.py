@@ -1,16 +1,12 @@
 import logging
-from pathlib import Path
 
 import numpy as np
 
-import dash
 import dash_mantine_components as dmc
 
-from skactiveml_annotation.core.data_display_model import DataDisplaySetting
 from skactiveml_annotation.core.schema import (
     Annotation,
     Batch,
-    Modality,
     MISSING_LABEL_MARKER,
 )
 from skactiveml_annotation.ui.components import sampling_input
@@ -18,7 +14,6 @@ from skactiveml_annotation.ui.components import sampling_input
 from . import (
     ids,
     actions,
-    data_display,
 )
 from .label_setting_modal import SortBySetting
 
@@ -219,32 +214,6 @@ def create_progress_bar(progress=0):
                 # 'border': 'gold dotted 3px'
             },
         )
-    )
-
-
-def create_data_display(
-    data_display_setting: DataDisplaySetting,
-    modality: Modality,
-    human_data_path: Path,
-    dpr: float,
-):
-    w = dash.no_update
-    h = dash.no_update
-
-    if modality == Modality.IMAGE:
-        image_display_setting = data_display_setting.image
-        rendered_data, w, h = data_display.create_image_display(human_data_path, image_display_setting, dpr)
-    elif modality == Modality.TEXT:
-        text_display_setting = data_display_setting.text
-        rendered_data = data_display.create_text_display(human_data_path, text_display_setting)
-    else:
-        audio_display_setting = data_display_setting.audio
-        rendered_data = data_display.create_audio_display(human_data_path, audio_display_setting)
-
-    return (
-        rendered_data,
-        w,
-        h
     )
 
 

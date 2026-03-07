@@ -3,7 +3,6 @@ from dash import (
     Input,
     Output,
     State,
-    callback 
 )
 
 from dash.exceptions import PreventUpdate
@@ -14,7 +13,7 @@ from skactiveml_annotation.core import api
 from skactiveml_annotation.ui import common
 
 from skactiveml_annotation.core.schema import Batch
-from skactiveml_annotation.ui.storekey import StoreKey 
+from skactiveml_annotation.ui.storekey import StoreKey
 
 from . import ids
 

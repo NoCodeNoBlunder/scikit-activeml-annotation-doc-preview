@@ -20,19 +20,24 @@ import isodate
 import pydantic
 
 from skactiveml_annotation.core import api
-from skactiveml_annotation.core.data_display_model import DataDisplaySetting
 from skactiveml_annotation.ui import common
-from skactiveml_annotation.ui.pages.annotation import components, data_presentation_settings
+from skactiveml_annotation.ui.pages.annotation import components
 from skactiveml_annotation.ui.pages.annotation.label_setting_modal import SortBySetting
 from skactiveml_annotation.ui.storekey import StoreKey
+from skactiveml_annotation.ui.pages.annotation.modality import (
+    DataDisplaySetting,
+    create_data_display,
+    create_data_presentation_settings,
+)
+
 from skactiveml_annotation.core.schema import (
     Batch,
     Annotation,
     AnnotationMetaData,
     AnnotationProgress,
+    SessionConfig,
     DISCARD_MARKER,
     MISSING_LABEL_MARKER,
-    SessionConfig,
 )
 
 from skactiveml_annotation.util import logging
@@ -110,7 +115,7 @@ def register(app: Dash):
             ui_trigger=ui_trigger,
             query_trigger=query_trigger,
             annot_progress=annot_progress.model_dump(),
-            data_presentation_setting_children=data_presentation_settings.create_data_presentation_settings(modality),
+            data_presentation_setting_children=create_data_presentation_settings(modality),
             session_data=store_data,
         )
     _ = init
@@ -281,7 +286,12 @@ def register(app: Dash):
                 logging.error(f"Data Presentation settings are expected to be valid here but are invalid: {e}")
                 raise PreventUpdate
 
-        rendered_data, w, h = components.create_data_display(data_display_setting, modality, human_data_path, browser_dpr)
+        rendered_data, w, h = create_data_display(
+            data_display_setting,
+            modality,
+            human_data_path,
+            browser_dpr,
+        )
 
         sort_by = SortBySetting[sort_by]
 
