@@ -50,15 +50,8 @@ BROWSER_ANNOTATION_ADAPTER = (
     pydantic.TypeAdapter(list[Annotation | None])
 )
 
+
 def register(app: Dash):
-    # Get initial browser config like dpr.
-    clientside_callback(
-        ClientsideFunction(namespace='clientside', function_name='getDpr'),
-        Output('browser-data', 'data'),
-        Input(ids.ANNOTATION_INIT, 'pathname')
-    )
-
-
     @app.callback(
         Input(ids.ANNOTATION_INIT, 'pathname'),
         State('session-store', 'data'),
@@ -79,7 +72,7 @@ def register(app: Dash):
     ):
         batch_dict = store_data.get(StoreKey.BATCH_STATE.value)
         batch = Batch.from_json(batch_dict) if batch_dict is not None else None
-        annot_progress = init_annot_progress(store_data)
+        annot_progress = _init_annot_progress(store_data)
 
         activeml_cfg = common.compose_from_state(store_data)
 
@@ -122,30 +115,6 @@ def register(app: Dash):
         )
     _ = init
 
-
-    def init_annot_progress(store_data) -> AnnotationProgress:
-        dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
-        embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
-
-        return AnnotationProgress(
-            num_annotated=api.get_num_annotated(dataset_id, exclude_missing=True),
-            num_samples=api.get_total_num_samples(dataset_id, embedding_id)
-        )
-
-
-    def _get_annotation_context(store_data: dict, batch: Batch):
-        start_time = datetime.fromisoformat(
-            store_data[StoreKey.DATA_PRESENT_TIMESTAMP.value]
-        )
-
-        idx = batch.progress
-
-        annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
-            store_data[StoreKey.ANNOTATIONS_STATE.value]
-        )
-
-        annotation = annotations_list[idx]
-        return idx, start_time, annotation, annotations_list
 
     @app.callback(
         Input(actions.CONFIRM.btn_id, 'n_clicks'),
@@ -334,14 +303,6 @@ def register(app: Dash):
     _ = on_ui_update
 
 
-    # On Query start. Show loading overlay.
-    clientside_callback(
-        ClientsideFunction(namespace='clientside', function_name='triggerTrue'),
-        Output(ids.COMPUTING_OVERLAY, 'visible'),
-        Input(ids.QUERY_TRIGGER, 'data')
-    )
-
-
     @app.callback(
         Input(ids.QUERY_TRIGGER, 'data'),
         State('session-store', 'data'),
@@ -382,8 +343,6 @@ def register(app: Dash):
             batch, annotations = api.restore_batch(activeml_cfg, global_history_idx, True, batch_size)
 
             # This assumes the idx is on the last of the previous batch
-            # TODO: Store global history index in brower using dcc.store and 
-            # not in fs.
             api.increment_global_history_idx(dataset_id, 1)
 
             store_data[StoreKey.ANNOTATIONS_STATE.value] = (
@@ -632,23 +591,6 @@ def register(app: Dash):
     _ = on_annot_progress_change
 
 
-
-    # Disable buttons to prevent spamming before processing is done.
-    clientside_callback(
-        ClientsideFunction(namespace='clientside', function_name='disableAllButtons'),
-        Output(ids.ALL_ANNOTATION_BTNS, 'loading'),
-        Input(ids.ALL_ANNOTATION_BTNS, 'n_clicks'),
-        prevent_initial_call=True
-    )
-
-    clientside_callback(
-        ClientsideFunction(namespace='clientside', function_name='scrollToChip'),
-        Output("label-radio", 'value'),
-        Input(ids.LABEL_SEARCH_INPUT, "value"),
-        prevent_initial_call=True,
-    )
-
-
     @app.callback(
         Input(ids.START_TIME_TRIGGER, 'data'),
         State('session-store', 'data'),
@@ -724,6 +666,60 @@ def register(app: Dash):
         )
     _ = on_add_new_class
 
+
+    # Get initial browser config like dpr.
+    clientside_callback(
+        ClientsideFunction(namespace='clientside', function_name='getDpr'),
+        Output('browser-data', 'data'),
+        Input(ids.ANNOTATION_INIT, 'pathname')
+    )
+
+    # Disable buttons to prevent spamming before processing is done.
+    clientside_callback(
+        ClientsideFunction(namespace='clientside', function_name='disableAllButtons'),
+        Output(ids.ALL_ANNOTATION_BTNS, 'loading'),
+        Input(ids.ALL_ANNOTATION_BTNS, 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    clientside_callback(
+        ClientsideFunction(namespace='clientside', function_name='scrollToChip'),
+        Output("label-radio", 'value'),
+        Input(ids.LABEL_SEARCH_INPUT, "value"),
+        prevent_initial_call=True,
+    )
+
+    # On Query start. Show loading overlay.
+    clientside_callback(
+        ClientsideFunction(namespace='clientside', function_name='triggerTrue'),
+        Output(ids.COMPUTING_OVERLAY, 'visible'),
+        Input(ids.QUERY_TRIGGER, 'data')
+    )
+
+
+def _init_annot_progress(store_data) -> AnnotationProgress:
+    dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
+    embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
+
+    return AnnotationProgress(
+        num_annotated=api.get_num_annotated(dataset_id, exclude_missing=True),
+        num_samples=api.get_total_num_samples(dataset_id, embedding_id)
+    )
+
+
+def _get_annotation_context(store_data: dict, batch: Batch):
+    start_time = datetime.fromisoformat(
+        store_data[StoreKey.DATA_PRESENT_TIMESTAMP.value]
+    )
+
+    idx = batch.progress
+
+    annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
+        store_data[StoreKey.ANNOTATIONS_STATE.value]
+    )
+
+    annotation = annotations_list[idx]
+    return idx, start_time, annotation, annotations_list
 
 
 def _init_or_update_annot_metadata(

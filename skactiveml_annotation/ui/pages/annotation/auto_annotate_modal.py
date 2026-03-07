@@ -75,7 +75,6 @@ def register_callbacks(app: Dash):
     _ = open_modal
 
 
-    # TODO: this should be a background callback
     @app.callback(
         Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
         State('session-store', 'data'),
@@ -93,9 +92,6 @@ def register_callbacks(app: Dash):
     ):
         if click is None:
             raise PreventUpdate
-
-        print("START WORKING ON AUTO ANNOTATE")
-        # TODO: what happens with the current batch Write back all annoted before doing it?
 
         activeml_cfg = common.compose_from_state(session_data)
         X = api.load_embeddings(
