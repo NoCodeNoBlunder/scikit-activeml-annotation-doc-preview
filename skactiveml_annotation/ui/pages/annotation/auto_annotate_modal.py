@@ -10,9 +10,10 @@ from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 
 from skactiveml_annotation.core import api
-from skactiveml_annotation.ui import common
+from skactiveml_annotation.shared_ids import STORE_DATA
 
-from skactiveml_annotation.core.schema import Batch
+from skactiveml_annotation.ui import common
+from skactiveml_annotation.ui.pages.home.selection import Selection
 from skactiveml_annotation.ui.storekey import StoreKey
 
 from . import ids
@@ -76,7 +77,7 @@ def register_callbacks(app: Dash):
 
     @app.callback(
         Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
         output=dict(
             auto_annot_modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
@@ -85,23 +86,19 @@ def register_callbacks(app: Dash):
         background=True,
     )
     def on_auto_annotate(
-        click,
-        session_data,
-        threshold,
+        click: int | None,
+        store_data: dict,
+        threshold: float,
     ):
         if click is None:
             raise PreventUpdate
 
-        activeml_cfg = common.compose_from_state(session_data)
+        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+        activeml_cfg = common.compose_from_state(selection)
         X = api.load_embeddings(
             activeml_cfg.dataset.id,
             activeml_cfg.embedding.id
         )
-
-        batch_json = session_data.pop(StoreKey.BATCH_STATE.value, None)
-        dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
-        embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
-        batch = Batch.from_json(batch_json)
 
         api.auto_annotate(X, activeml_cfg, threshold)
 

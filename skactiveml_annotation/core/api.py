@@ -3,13 +3,13 @@ from io import BytesIO
 import base64
 from typing import TypeVar, TypeGuard
 from collections import OrderedDict
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from itertools import islice
 import json
 import inspect
 from functools import partial, lru_cache
 from pathlib import Path
-from typing import Callable, cast
+from typing import Callable
 
 import hydra
 import pydantic
@@ -31,11 +31,6 @@ from skactiveml_annotation.util import deserialize
 import skactiveml_annotation.paths as sap
 
 from skactiveml_annotation.core.schema import (
-    ActiveMlConfig,
-    EmbeddingConfig,
-    QueryStrategyConfig,
-    ModelConfig,
-    DatasetConfig,
     SessionConfig,
     Annotation,
     AutomatedAnnotation,
@@ -45,6 +40,14 @@ from skactiveml_annotation.core.schema import (
     HistoryIdx,
 )
 
+from skactiveml_annotation.hydra_schema import (
+    ActiveMlConfig,
+    EmbeddingConfig,
+    QueryStrategyConfig,
+    ModelConfig,
+    DatasetConfig,
+)
+
 from skactiveml_annotation.core.shared_types import DashProgressFunc
 from skactiveml_annotation.util.utils import SortOrder
 
@@ -52,7 +55,7 @@ QueryFunc = Callable[..., npt.NDArray[np.intp]]
 
 T = TypeVar("T")
 
-def _not_none_type_narrowing(x: T | None) -> TypeGuard[T]:
+def not_none_type_narrowing(x: T | None) -> TypeGuard[T]:
     return x is not None
 
 def get_dataset_config_options() -> list[DatasetConfig]:
@@ -407,7 +410,7 @@ def save_partial_annotations(batch: Batch, dataset_id: str, embedding_id: str, a
     # Save all annotations including skipped ones to update meta data.
     # Dont save annotations that have not been looked at at all
     # at the time of skipping the batch
-    annotated = list(filter(_not_none_type_narrowing, annotations))
+    annotated = list(filter(not_none_type_narrowing, annotations))
     update_json_annotations(dataset_id, embedding_id, annotated, batch)
 
 
@@ -832,27 +835,28 @@ def increment_global_history_idx(dataset_id: str, value: int):
     new_val = current_idx + value
     set_global_history_idx(dataset_id, new_val)
     
+
 def restore_batch(
-    cfg: ActiveMlConfig, 
-    history_idx: int, 
+    cfg: ActiveMlConfig,
+    history_idx: int,
     restore_forward: bool,
-    num_restore: int
+    num_restore: int,
 # ) -> tuple[Batch, list[Annotation | None]]:
 ) -> tuple[Batch, list[Annotation]]:
-    # INFO: When restoring backwards it will try to restore num_restore samples
+    # When restoring backwards it will try to restore num_restore samples
     # If there are not enough samples left to restore it will restore as much as it can
     # If it cant restore it will throw an error
     # Assumes annotations are stored in json in the same order they were made.
     logging.info("\nRestore Batch")
     logging.debug15("history idx:", history_idx)
-    # INFO: History_idx is exclusive and wont be restored
+    # History_idx is exclusive and wont be restored
 
     if restore_forward:
         start = history_idx + 1
         end = start + num_restore
     else:
         end = history_idx # exclusive
-        start = max(0, end - num_restore) 
+        start = max(0, end - num_restore)
 
         num_restorable = end - start
 

@@ -1,122 +1,10 @@
 import json
-from enum import Enum
-from dataclasses import dataclass, asdict
-import logging
-from typing import Any, TypeVar
-
-import hydra
+from dataclasses import dataclass
 
 import pydantic
-from pydantic import Field
-
-from sklearn.base import ClassifierMixin
-from skactiveml.base import SingleAnnotatorPoolQueryStrategy
-
-from skactiveml_annotation.embedding.base import EmbeddingBaseAdapter
 
 MISSING_LABEL_MARKER = 'MISSING_LABEL'
 DISCARD_MARKER = 'DISCARDED'
-
-
-T = TypeVar("T")
-
-class Modality(Enum):
-    AUDIO = "Audio"
-    TEXT = "Text"
-    IMAGE = "Image"
-
-
-class QueryStrategyTarget(pydantic.BaseModel):
-    target_: str = Field(..., alias="_target_")
-
-    class Config:
-        extra: str = "allow"
-
-    def instantiate(self, **kwargs: Any) -> SingleAnnotatorPoolQueryStrategy:
-        return _instantiate(self, SingleAnnotatorPoolQueryStrategy, **kwargs)
-
-
-class ModelTarget(pydantic.BaseModel):
-    target_: str = Field(..., alias="_target_")
-
-    class Config:
-        extra: str = "allow"
-
-    def instantiate(self, **kwargs: Any) -> ClassifierMixin:
-        return _instantiate(self, ClassifierMixin, **kwargs)
-
-
-class EmbeddingTarget(pydantic.BaseModel):
-    target_: str = Field(..., alias="_target_")
-
-    class Config:
-        extra: str = "allow"
-
-    def instantiate(self, **kwargs: Any) -> EmbeddingBaseAdapter:
-        return _instantiate(self, EmbeddingBaseAdapter, **kwargs)
-
-
-class EmbeddingConfig(pydantic.BaseModel):
-    id: str
-    display_name: str
-    definition: EmbeddingTarget
-    modalities: list[Modality]
-
-
-class DatasetConfig(pydantic.BaseModel):
-    id: str
-    display_name: str
-    classes: list[str]
-    data_path: str
-    modality: Modality
-
-
-class ModelConfig(pydantic.BaseModel):
-    id: str
-    display_name: str
-    definition: ModelTarget
-
-
-class QueryStrategyConfig(pydantic.BaseModel):
-    id: str
-    display_name: str
-    model_agnostic: bool
-    definition: QueryStrategyTarget
-
-
-class ActiveMlConfig(pydantic.BaseModel):
-    random_seed: int
-    model: ModelConfig
-    dataset: DatasetConfig
-    query_strategy: QueryStrategyConfig
-    embedding: EmbeddingConfig
-
-
-def _instantiate(cfg: pydantic.BaseModel, expected_type: type[T], **kwargs: Any) -> T:
-    try:
-        cfg_dict = cfg.model_dump(by_alias=True)
-        x = hydra.utils.instantiate(cfg_dict, **kwargs)
-    except Exception as e:
-        logging.error(
-            "\n".join([
-                f"Hydra failed to instantiate instance of: {expected_type.__name__}.",
-                f"Config: {cfg.model_dump(by_alias=True)}",
-                f"Exception: {e}",
-            ])
-        )
-        raise
-
-    if not isinstance(x, expected_type):
-        logging.error("\n".join([
-            "Hydra instantiated unexpected type:",
-            f"Expected type: {expected_type.__name__}",
-            f"Actual type:   {type(x).__name__}",
-        ]))
-        raise TypeError(
-            f"Expected instance of {expected_type.__name__}, got {type(x).__name__}"
-        )
-  
-    return x
 
 
 @dataclass
@@ -130,6 +18,7 @@ class SessionConfig:
             self.subsampling = None
 
 
+# Dont use pydantic because it does not serialize private fields
 class Batch:
     def __init__(
         self,
@@ -160,8 +49,8 @@ class Batch:
             )
 
         self._progress += step
-        self._min_progress = min(self._min_progress, self._progress)
-        self._max_progress = max(self._max_progress, self._progress)
+        self._min_progress = min(self._min_progress, self.progress)
+        self._max_progress = max(self._max_progress, self.progress)
 
     def _is_valid_progress(self, progress: int) -> bool:
         return 0 <= progress < len(self.emb_indices)
@@ -170,7 +59,7 @@ class Batch:
         return self._max_progress - self._min_progress + 1
 
     def is_advanceable(self, step: int) -> bool:
-        next_progress = self._progress + step
+        next_progress = self.progress + step
         return self._is_valid_progress(next_progress)
 
     def is_completed(self) -> bool:
@@ -204,6 +93,7 @@ class Batch:
         batch._max_progress = data["_max_progress"]
         return batch
 
+
 class AnnotationMetaData(pydantic.BaseModel):
     first_view_time: str = '' # Time when the sample was first presented
     total_view_duration: str = '' # Total presentation time
@@ -227,7 +117,6 @@ class AnnotationProgress(pydantic.BaseModel):
 
     def is_all_annotated(self) -> bool:
         return self.num_annotated == self.num_samples
-
 
 class AutomatedAnnotation(pydantic.BaseModel):
     embedding_idx: int

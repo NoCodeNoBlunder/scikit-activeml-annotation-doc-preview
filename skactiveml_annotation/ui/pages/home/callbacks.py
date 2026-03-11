@@ -1,3 +1,5 @@
+from typing import Protocol, Sequence
+
 from dash import (
     ClientsideFunction,
     Dash,
@@ -16,16 +18,24 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from skactiveml_annotation.core import api
-from skactiveml_annotation.core.schema import DatasetConfig
+from skactiveml_annotation.hydra_schema import DatasetConfig
+from skactiveml_annotation.shared_ids import STORE_DATA
 from skactiveml_annotation.ui.components import sampling_input
 from skactiveml_annotation.ui.storekey import StoreKey
+# TODO:
+from skactiveml_annotation.ui.pages.home.selection import Selection, SelectionProgress, SelectionStep
 from skactiveml_annotation.util import logging
 
 from . import (
     ids,
 )
 
- 
+
+class HasIdAndDisplayName(Protocol):
+    id: str
+    display_name: str
+
+
 def register(app: Dash):
     @app.callback(
         Input(ids.CONFIRM_BUTTON, 'n_clicks'),
@@ -33,10 +43,10 @@ def register(app: Dash):
         Input(ids.STEPPER, 'active'),
         State(ids.RADIO_SELECTION, 'value'),
         State(ids.STEPPER, 'active'),
-        State('session-store', 'data'),
+        State(ids.SELECTION_PROGRESS, 'data'),
         output=dict(
             selection_content=Output(ids.UI_CONTAINER, 'children', allow_duplicate=True),
-            session_data=Output('session-store', 'data', allow_duplicate=True),
+            selection=Output(ids.SELECTION_PROGRESS, 'data', allow_duplicate=True),
             step=Output(ids.STEPPER, 'active', allow_duplicate=True),
             focus=Output('focus-el-trigger', 'data', allow_duplicate=True),
         ),
@@ -48,75 +58,89 @@ def register(app: Dash):
         new_active: int | None,
         radio_value: str,
         current_step: int,
-        session_data: dict,
+        selection_data: dict | None,
     ):
-        if confirm_clicks is None and back_clicks is None and new_active is None:
+        if (
+            selection_data is None
+            or (confirm_clicks is None and back_clicks is None and new_active is None)
+        ):
             raise PreventUpdate
 
         trigger_id = ctx.triggered_id
 
+        selection = SelectionProgress.model_validate(selection_data)
+
         if trigger_id == ids.CONFIRM_BUTTON:
-            return _handle_confirm(radio_value, current_step, session_data)
+            return _handle_confirm(radio_value, current_step, selection)
 
         elif trigger_id == ids.BACK_BUTTON:
-            return _handle_back(current_step, session_data)
+            return _handle_back(current_step, selection)
 
         elif trigger_id == ids.STEPPER:
             if new_active is None:
                 logging.error("new_active is None when the trigger was the STEPPER. Should not occure")
                 raise PreventUpdate
-            return _handle_ui_stepper_clicked(new_active, session_data)
+            return _handle_ui_stepper_clicked(new_active, selection)
     _ = update
 
 
     @app.callback(
         Input('url_home_init', 'pathname'),
-        State('session-store', 'data'),
+        State(ids.SELECTION_PROGRESS, 'data'),
         output=dict(
             selection_content=Output(ids.UI_CONTAINER, 'children', allow_duplicate=True),
-            session_data=Output('session-store', 'data', allow_duplicate=True),
+            selection=Output(ids.SELECTION_PROGRESS, 'data', allow_duplicate=True),
         ),
         prevent_initial_call='initial_duplicate',
     )
     def setup_page(
         _,
-        session_data,
+        selection_data: dict | None,
     ):
-        logging.debug15("Setup page")
-
-        if session_data is None:
-            session_data = {}
+        if selection_data is None:
+            selection = SelectionProgress()
+        else:
+            selection = SelectionProgress.model_validate(selection_data)
 
         return dict(
-            selection_content=_create_step_ui(0, session_data),
-            session_data=session_data
+            selection_content=_create_step_ui(SelectionStep(0), selection),
+            selection=selection.model_dump(),
         )
     _ = setup_page
 
 
     @app.callback(
         Input(ids.NEXT_PAGE_TRIGGER, 'data'),
-        State('session-store', 'data'),
+        State(ids.SELECTION_PROGRESS, 'data'),
         output=dict(
-            pathname=Output('url_home', 'pathname')
+            pathname=Output('url_home', 'pathname'),
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
         ),
-        prevent_initial_call=True
+        initial_duplicate=True,
     )
     def go_to_next_page(
-        _,
-        session_data,
+        pathname,
+        selection_data: dict,
     ):
-        dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
-        embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
+        if pathname is None:
+            raise PreventUpdate
 
-        if api.is_dataset_embedded(dataset_id, embedding_id):
+        selection = SelectionProgress.model_validate(selection_data).convert()
+
+        if api.is_dataset_embedded(selection.dataset_id, selection.embedding_id):
             logging.debug15("Home to annotation \n -------------------------- \n")
-            pathname = f'/annotation/{dataset_id}'
+            pathname = f'/annotation/{selection.dataset_id}'
         else:
             logging.debug15("Home to embedding \n -------------------------- \n")
             pathname = f'/embedding'
 
-        return dict(pathname=pathname)
+        store_data = { StoreKey.SELECTIONS.value: selection.model_dump()
+        }
+
+        return dict(
+            pathname=pathname,
+            store_data=store_data,
+        )
     _ = go_to_next_page
 
 
@@ -130,42 +154,33 @@ def register(app: Dash):
 def _handle_confirm(
     radio_value: str,
     current_step: int,
-    session_data: dict,
+    selection: SelectionProgress,
 ):
     # logging.debug15(f"handle_confirm triggered at step {current_step} with radio_value: {radio_value}")
     # if current_step >= 4 or radio_value is None or n_clicks is None:
     #     raise PreventUpdate
 
-    if current_step >= 4: # TODO: Hardcoded
+    if current_step >= Selection.size():
         set_props(ids.NEXT_PAGE_TRIGGER, dict(data=True))
         return dict(
             selection_content=dash.no_update,
-            session_data=dash.no_update,
+            selection=dash.no_update,
             step=dash.no_update,
             focus=dash.no_update,
         )
 
     elif current_step == 0:
-        prev_dataset_id = session_data.get(StoreKey.DATASET_SELECTION.value)
+        prev_dataset_id = selection.get(SelectionStep.DATASET)
         was_dataset_changed = prev_dataset_id is not None and radio_value != prev_dataset_id
         if was_dataset_changed:
-            session_data.pop(StoreKey.BATCH_STATE.value, None)
+            selection.add(SelectionStep.DATASET, None)
 
-        session_data[StoreKey.DATASET_SELECTION.value] = radio_value
+    selection.add(SelectionStep(current_step), radio_value)
+    new_step = SelectionStep(current_step + 1)
 
-    elif current_step == 1:
-        session_data[StoreKey.EMBEDDING_SELECTION.value] = radio_value
-
-    elif current_step == 2:
-        session_data[StoreKey.QUERY_SELECTION.value] = radio_value
-
-    elif current_step == 3:
-        session_data[StoreKey.MODEL_SELECTION.value] = radio_value
-
-    new_step = current_step + 1
     return dict(
-        selection_content=_create_step_ui(new_step, session_data),
-        session_data=session_data,
+        selection_content=_create_step_ui(new_step, selection),
+        selection=selection.model_dump(),
         step=new_step,
         focus=ids.UI_CONTAINER,
     )
@@ -173,16 +188,16 @@ def _handle_confirm(
 
 def _handle_back(
     current_step: int,
-    session_data: dict,
+    selection: SelectionProgress,
 ):
     if current_step == 0:
         raise PreventUpdate
 
-    next_step = current_step - 1
+    next_step = SelectionStep(current_step - 1)
 
     return dict(
-        selection_content=_create_step_ui(next_step, session_data),
-        session_data=dash.no_update,
+        selection_content=_create_step_ui(next_step, selection),
+        selection=dash.no_update,
         step=next_step,
         focus=ids.UI_CONTAINER,
     )
@@ -190,31 +205,29 @@ def _handle_back(
 
 def _handle_ui_stepper_clicked(
     new_active: int,
-    session_data: dict,
+    selection: SelectionProgress,
 ):
+    new_active = SelectionStep(new_active)
     return dict(
-        selection_content=_create_step_ui(new_active, session_data),
-        session_data=dash.no_update,
+        selection_content=_create_step_ui(new_active, selection),
+        selection=dash.no_update,
         step=dash.no_update,
         focus=ids.UI_CONTAINER,
     )
 
 
 # Helper function to build UI for different steps
-def _create_step_ui(step: int, session_data):
-    if step == 0:
-        if session_data is None:
-            preselect = None
-        else:
-            preselect = session_data.get(StoreKey.DATASET_SELECTION.value)
+def _create_step_ui(step: SelectionStep, selection: SelectionProgress):
+    if step == SelectionStep.DATASET:
+        preselect = selection.get(SelectionStep.DATASET)
         content = _create_dataset_selection(preselect)
-    elif step == 1:
-        content = _create_embedding_radio_group(session_data)
-    elif step == 2:
-        content = _create_radio_group(api.get_qs_config_options(), session_data.get(StoreKey.QUERY_SELECTION.value))
-    elif step == 3:
-        content = _create_radio_group(api.get_model_config_options(), session_data.get(StoreKey.MODEL_SELECTION.value))
-    elif step == 4:
+    elif step == SelectionStep.EMBEDDING:
+        content = _create_embedding_radio_group(selection)
+    elif step == SelectionStep.QUERY:
+        content = _create_radio_group(api.get_qs_config_options(), selection.get(SelectionStep.QUERY))
+    elif step == SelectionStep.MODEL:
+        content = _create_radio_group(api.get_model_config_options(), selection.get(SelectionStep.MODEL))
+    elif step == SelectionStep.SAMPLING_PARAM:
         content = dmc.Stack(
             [
                 *sampling_input.create_sampling_inputs(),
@@ -223,10 +236,6 @@ def _create_step_ui(step: int, session_data):
             ],
             align="flex-start"
         )
-    elif step == 5:
-        return None
-    else:
-        raise RuntimeError("Step is not in {0,...,4}")
 
     return dmc.ScrollArea(
         content,
@@ -263,15 +272,10 @@ def _create_dataset_radio_item(cfg: DatasetConfig, cfg_display: str):
     )
 
 
-def _create_dataset_selection(preselect):
+def _create_dataset_selection(preselect: str | None):
     dataset_options = api.get_dataset_config_options()
     data = [(cfg, f'{cfg.display_name} - ({cfg.modality.value})')
             for cfg in dataset_options]
-
-    # TODO: Make it so the first none disabled element is preselected by default
-    if preselect is None:
-        # Preselect the first element
-        preselect = data[1][0].id
 
     return (
         dmc.RadioGroup(
@@ -291,8 +295,9 @@ def _create_dataset_selection(preselect):
     )
 
 
-def _create_embedding_radio_group(session_data):
-    dataset_cfg_id = session_data[StoreKey.DATASET_SELECTION.value]
+def _create_embedding_radio_group(selection: SelectionProgress):
+    dataset_cfg_id = selection.get_not_none(SelectionStep.DATASET)
+
     modality = api.get_dataset_cfg_from_id(dataset_cfg_id).modality
 
     # Only show embedding methods applicable to the modality of the dataset
@@ -303,7 +308,7 @@ def _create_embedding_radio_group(session_data):
 
     formatted_options = [(cfg.id, cfg.display_name) for cfg in options]
 
-    preselect = session_data.get(StoreKey.EMBEDDING_SELECTION.value)
+    preselect = selection.get(SelectionStep.EMBEDDING)
 
     return dmc.RadioGroup(
         id=ids.RADIO_SELECTION,
@@ -313,7 +318,7 @@ def _create_embedding_radio_group(session_data):
                     [
                         dmc.Radio(label=cfg_name, value=cfg_id, size='md'),
                         _create_bool_icon(api.is_dataset_embedded(
-                            session_data[StoreKey.DATASET_SELECTION.value],
+                            selection.get_not_none(SelectionStep.DATASET),
                             cfg_id
                         ))
                     ]
@@ -352,8 +357,10 @@ def _create_bool_icon(val: bool):
     )
 
 
-# Helper function to create a radio group
-def _create_radio_group(options, preselect):
+def _create_radio_group(
+    options: Sequence[HasIdAndDisplayName],
+    preselect: str | None,
+):
     formatted_options = [(cfg.id, cfg.display_name) for cfg in options]
     return dmc.RadioGroup(
         id=ids.RADIO_SELECTION,

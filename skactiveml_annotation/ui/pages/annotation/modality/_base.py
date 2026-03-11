@@ -13,10 +13,8 @@ from dash import (
 import dash
 from dash.exceptions import PreventUpdate
 
+from skactiveml_annotation.hydra_schema.base import Modality
 from skactiveml_annotation.ui.pages.annotation import actions
-from skactiveml_annotation.core.schema import (
-    Modality,
-)
 from skactiveml_annotation.util import logging
 
 from . import (

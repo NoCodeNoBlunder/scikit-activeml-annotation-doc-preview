@@ -12,7 +12,10 @@ import dash_mantine_components as dmc
 
 from skactiveml_annotation import ui
 from skactiveml_annotation.core import api
+from skactiveml_annotation.ui.pages.home.selection import Selection
+
 from skactiveml_annotation.core.shared_types import DashProgressFunc
+from skactiveml_annotation.shared_ids import STORE_DATA
 from skactiveml_annotation.ui.storekey import StoreKey
 from skactiveml_annotation.util import logging
 
@@ -20,17 +23,17 @@ from skactiveml_annotation.util import logging
 def register(app: Dash):
     @app.callback(
         Input('url-embedding-init', 'pathname'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         output=dict(
             embedding_selection_content=Output("embedding-selection-container", 'children')
         )
     )
     def setup_page(
         _,
-        session_data
+        store_data: dict,
     ):
         return dict(
-            embedding_selection_content=_create_selected_embedding_view(session_data)
+            embedding_selection_content=_create_selected_embedding_view(store_data)
         )
     _ = setup_page
 
@@ -75,7 +78,7 @@ def register(app: Dash):
 
     @app.callback(
         Input("embedding-button", 'n_clicks'),
-        State("session-store", 'data'),
+        State(STORE_DATA, 'data'),
         progress=Output('embedding-progress', 'value'),
         cancel=Input('cancel-embedding-button', 'n_clicks'),
         running=[
@@ -93,7 +96,7 @@ def register(app: Dash):
     def compute_embedding(
         progress_func: DashProgressFunc, # Progress func gets passed as first arg
         n_clicks: int | None,
-        store_data
+        store_data: dict,
     ):
         if n_clicks is None:
             raise PreventUpdate
@@ -116,16 +119,16 @@ def register(app: Dash):
     @app.callback(
         Input('go-home-button', 'n_clicks'),
         Input('go-annotating-button', 'n_clicks'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         output=dict(
             pathname=Output('url-embedding', 'pathname')
         ),
         prevent_initial_call=True
     )
     def change_page(
-        home_clicks,
-        annot_clicks,
-        session_data
+        home_clicks: int | None,
+        annot_clicks: int | None,
+        store_data: dict,
     ):
         if home_clicks is None and annot_clicks is None:
             raise PreventUpdate
@@ -136,8 +139,8 @@ def register(app: Dash):
             pathname = '/'
         else:
             # go-annotating-button
-            dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
-            pathname = f'/annotation/{dataset_id}'
+            selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+            pathname = f'/annotation/{selection.dataset_id}'
 
         return dict(
             pathname=pathname
@@ -145,20 +148,19 @@ def register(app: Dash):
     _ = change_page
 
 
-def _compute_embedding(store_data, progress_func):
-    activeml_cfg = ui.common.compose_from_state(store_data)
+def _compute_embedding(store_data: dict, progress_func: DashProgressFunc):
+    selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+    activeml_cfg = ui.common.compose_from_state(selection)
     api.compute_embeddings(activeml_cfg, progress_func)
 
 
-def _create_selected_embedding_view(session_data):
-    dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
-    embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
-
+def _create_selected_embedding_view(store_data: dict):
+    selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
     return (
         dmc.Card(
             [
-                dmc.Text(f'Dataset: {dataset_id}'),
-                dmc.Text(f'Embedding: {embedding_id}'),
+                dmc.Text(f'Dataset: {selection.dataset_id}'),
+                dmc.Text(f'Embedding: {selection.embedding_id}'),
             ],
         )
     )

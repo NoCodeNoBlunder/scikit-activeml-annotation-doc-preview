@@ -16,6 +16,7 @@ import dash_mantine_components as dmc
 import dash_loading_spinners
 
 
+from skactiveml_annotation.shared_ids import STORE_DATA
 from skactiveml_annotation.ui import clientside_callbacks
 from skactiveml_annotation.ui.components import navbar
 import skactiveml_annotation.paths as sap
@@ -72,7 +73,8 @@ def layout(**kwargs):
                 [
                     # Data stored across all pages
                     dcc.Store('browser-data'),
-                    dcc.Store('session-store', storage_type='session'),
+                    dcc.Store(STORE_DATA, storage_type='session'),
+                    dcc.Store('selected-ids', storage_type='session'),
 
                     # Triggers
                     dcc.Store("click-btn-trigger"),

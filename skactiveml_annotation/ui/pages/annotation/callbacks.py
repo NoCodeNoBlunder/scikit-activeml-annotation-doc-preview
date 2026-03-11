@@ -20,6 +20,7 @@ import isodate
 import pydantic
 
 from skactiveml_annotation.core import api
+from skactiveml_annotation.shared_ids import STORE_DATA
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.pages.annotation import components
 from skactiveml_annotation.ui.pages.annotation.label_setting_modal import SortBySetting
@@ -40,6 +41,7 @@ from skactiveml_annotation.core.schema import (
     MISSING_LABEL_MARKER,
 )
 
+from skactiveml_annotation.ui.pages.home.selection import Selection
 from skactiveml_annotation.util import logging
 
 from . import (
@@ -59,27 +61,28 @@ BROWSER_ANNOTATION_ADAPTER = (
 def register(app: Dash):
     @app.callback(
         Input(ids.ANNOTATION_INIT, 'pathname'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State('batch-size-input', 'value'),
         output=dict(
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             query_trigger=Output(ids.QUERY_TRIGGER, 'data', allow_duplicate=True),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data'),
             data_presentation_setting_children=Output(ids.DATA_PRESENTATION_SETTINGS_CONTAINER, "children"),
-            session_data=Output('session-store', 'data', allow_duplicate=True),
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
         ),
         prevent_initial_call='initial_duplicate'
     )
     def init(
         _,
-        store_data,
+        store_data: dict,
         batch_size: int,
     ):
-        batch_dict = store_data.get(StoreKey.BATCH_STATE.value)
-        batch = Batch.from_json(batch_dict) if batch_dict is not None else None
-        annot_progress = _init_annot_progress(store_data)
+        batch_json = store_data.get(StoreKey.BATCH_STATE.value)
+        batch = Batch.from_json(batch_json) if batch_json is not None else None
+        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+        annot_progress = _init_annot_progress(selection)
 
-        activeml_cfg = common.compose_from_state(store_data)
+        activeml_cfg = common.compose_from_state(selection)
 
         if annot_progress.is_all_annotated():
             if batch is None:
@@ -116,7 +119,7 @@ def register(app: Dash):
             query_trigger=query_trigger,
             annot_progress=annot_progress.model_dump(),
             data_presentation_setting_children=create_data_presentation_settings(modality),
-            session_data=store_data,
+            store_data=store_data,
         )
     _ = init
 
@@ -125,11 +128,11 @@ def register(app: Dash):
         Input(actions.CONFIRM.btn_id, 'n_clicks'),
         Input(actions.DISCARD.btn_id, 'n_clicks'),
         Input(actions.SKIP.btn_id, 'n_clicks'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State('label-radio', 'value'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
-            store_data=Output('session-store', 'data', allow_duplicate=True),
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
             annot_data=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
@@ -187,8 +190,10 @@ def register(app: Dash):
         if not batch.is_advanceable(step=1):
             logging.info("Batch is completed")
 
-            dataset_id = store_data[StoreKey.DATASET_SELECTION.value]
-            embedding_id = store_data[StoreKey.EMBEDDING_SELECTION.value]
+
+            selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+            dataset_id = selection.dataset_id
+            embedding_id = selection.embedding_id
 
             # All samples in the batch should be annotated by now
             annotations = cast(list[Annotation], annotations_list)
@@ -218,7 +223,7 @@ def register(app: Dash):
 
     @app.callback(
         Input(ids.UI_TRIGGER, 'data'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State(ids.DATA_DISPLAY_CFG_DATA, 'data'),
         State('browser-data', 'data'),
         State(ids.ADDED_CLASS_NAME, 'data'),
@@ -245,7 +250,7 @@ def register(app: Dash):
         ui_trigger,
         # Data
         store_data,
-        data_display_setting_json,
+        data_display_setting_data: dict | None,
         browser_dpr,
         # Adding classes
         added_class_name: str | None,
@@ -257,9 +262,11 @@ def register(app: Dash):
         if ui_trigger is None and browser_dpr is None:
             raise PreventUpdate
 
-        activeml_cfg = common.compose_from_state(store_data)
+        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+        activeml_cfg = common.compose_from_state(selection)
         modality = activeml_cfg.dataset.modality
         batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
+
         annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
             store_data[StoreKey.ANNOTATIONS_STATE.value]
         )
@@ -276,12 +283,12 @@ def register(app: Dash):
             )
         )
 
-        if data_display_setting_json is None:
+        if data_display_setting_data is None:
             logging.debug15("Data Display Setting is not yet initialized. Initializing now.")
             data_display_setting = DataDisplaySetting()
         else:
             try:
-                data_display_setting = DataDisplaySetting.model_validate(data_display_setting_json)
+                data_display_setting = DataDisplaySetting.model_validate(data_display_setting_data)
             except pydantic.ValidationError as e:
                 logging.error(f"Data Presentation settings are expected to be valid here but are invalid: {e}")
                 raise PreventUpdate
@@ -315,15 +322,15 @@ def register(app: Dash):
 
     @app.callback(
         Input(ids.QUERY_TRIGGER, 'data'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State('batch-size-input', 'value'),
         State('subsampling-input', 'value'),
         output=dict(
-            store_data=Output('session-store', 'data', allow_duplicate=True),
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True,
-        # background=True, # INFO LRU Cache won't work with this
+        # background=True, # LRU Cache won't work with this
     )
     def on_next_batch(
         trigger,
@@ -340,7 +347,8 @@ def register(app: Dash):
         # Assumes global idx is on the last of the completed batch
         # to determine correct number of restorable samples
         session_cfg = SessionConfig(batch_size, subsampling)
-        activeml_cfg = common.compose_from_state(store_data)
+        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+        activeml_cfg = common.compose_from_state(selection)
         dataset_id = activeml_cfg.dataset.id
 
         global_history_idx = api.get_global_history_idx(dataset_id)
@@ -428,11 +436,11 @@ def register(app: Dash):
 
     @app.callback(
         Input('skip-batch-button', 'n_clicks'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
             query_trigger=Output(ids.QUERY_TRIGGER, 'data'),
-            session_data=Output('session-store', 'data', allow_duplicate=True),
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
@@ -441,22 +449,24 @@ def register(app: Dash):
     )
     def on_skip_batch(
         n_clicks: int,
-        session_data: dict,
+        store_data: dict,
         annot_progress,
     ):
         if n_clicks is None or n_clicks == 0:
             raise PreventUpdate
 
         # reset batch state
-        batch_json = session_data.pop(StoreKey.BATCH_STATE.value, None)
-        dataset_id = session_data[StoreKey.DATASET_SELECTION.value]
-        embedding_id = session_data[StoreKey.EMBEDDING_SELECTION.value]
+        batch_json = store_data.pop(StoreKey.BATCH_STATE.value, None)
+        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+
+        dataset_id = selection.dataset_id
+        embedding_id = selection.embedding_id
         batch = Batch.from_json(batch_json)
 
-        logging.debug15(session_data[StoreKey.ANNOTATIONS_STATE.value])
+        logging.debug15(store_data[StoreKey.ANNOTATIONS_STATE.value])
 
         annotations_list = BROWSER_ANNOTATION_ADAPTER.validate_python(
-            session_data[StoreKey.ANNOTATIONS_STATE.value]
+            store_data[StoreKey.ANNOTATIONS_STATE.value]
         )
         api.save_partial_annotations(batch, dataset_id, embedding_id, annotations_list)
 
@@ -465,7 +475,7 @@ def register(app: Dash):
 
         return dict(
             query_trigger=True,
-            session_data=session_data,
+            store_data=store_data,
             annot_progress=annot_progress.model_dump(),
             search_text='',
             focus_trigger=ids.LABEL_SEARCH_INPUT,
@@ -475,11 +485,11 @@ def register(app: Dash):
 
     @app.callback(
         Input(actions.BACK.btn_id, 'n_clicks'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State('batch-size-input', 'value'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
-            session_data=Output('session-store', 'data'),
+            store_data=Output(STORE_DATA, 'data'),
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
@@ -489,9 +499,9 @@ def register(app: Dash):
     )
     def on_back(
         clicks: None | int,
-        store_data,
-        batch_size,
-        annot_progress,
+        store_data: dict,
+        batch_size: int,
+        annot_progress_data: dict,
     ):
         end_time = datetime.now(timezone.utc)
 
@@ -501,7 +511,7 @@ def register(app: Dash):
         logging.debug15("\non back click callback")
 
         batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
-        annot_progress = AnnotationProgress.model_validate(annot_progress)
+        annot_progress = AnnotationProgress.model_validate(annot_progress_data)
 
         idx, start_time, annotation, annotations_list = _get_annotation_context(store_data, batch)
         annot_metadata = _init_or_update_annot_metadata(annotation, start_time, end_time)
@@ -521,12 +531,13 @@ def register(app: Dash):
 
         if batch.progress == 0:
             logging.debug15("Have to get last batch to be able to go back.")
-            dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
-            embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
+            selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+            dataset_id = selection.dataset_id
+            embedding_id = selection.embedding_id
             file_paths = api.get_file_paths(dataset_id, embedding_id, batch.emb_indices)
             api.update_annotations(dataset_id, file_paths, annotations_list)
 
-            activeml_cfg = common.compose_from_state(store_data)
+            activeml_cfg = common.compose_from_state(selection)
             history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
 
             try:
@@ -536,7 +547,7 @@ def register(app: Dash):
                 # Have to do ui_trigger so the buttons are enabled
                 return dict(
                     ui_trigger=True,
-                    session_data=dash.no_update,
+                    store_data=dash.no_update,
                     annot_progress=dash.no_update,
                     search_text=dash.no_update,
                     focus_trigger=dash.no_update,
@@ -568,7 +579,7 @@ def register(app: Dash):
         store_data[StoreKey.BATCH_STATE.value] = batch.to_json()
         return dict(
             ui_trigger=True,
-            session_data=store_data,
+            store_data=store_data,
             annot_progress=annot_progress.model_dump(),
             search_text='',
             focus_trigger=ids.LABEL_SEARCH_INPUT,
@@ -603,15 +614,15 @@ def register(app: Dash):
 
     @app.callback(
         Input(ids.START_TIME_TRIGGER, 'data'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         output=dict(
-            session_data=Output("session-store", 'data', allow_duplicate=True)
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True)
         ),
         prevent_initial_call=True
     )
     def on_annot_start_timestamp(
         trigger,
-        session_data
+        store_data,
     ):
         if trigger is None:
             raise PreventUpdate
@@ -619,24 +630,24 @@ def register(app: Dash):
         # TODO: this will be utc aware time of the server and not user
         now_str = datetime.now(timezone.utc).isoformat()
 
-        session_data[StoreKey.DATA_PRESENT_TIMESTAMP.value] = now_str
+        store_data[StoreKey.DATA_PRESENT_TIMESTAMP.value] = now_str
 
         return dict(
-            session_data=session_data
+            store_data=store_data
         )
     _ = on_annot_start_timestamp
 
 
     @app.callback(
         Input(ids.ADD_CLASS_BTN, 'n_clicks'),
-        State('session-store', 'data'),
+        State(STORE_DATA, 'data'),
         State(ids.LABEL_SEARCH_INPUT, 'value'),
         output=dict(
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             search_value=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             added_class_name=Output(ids.ADDED_CLASS_NAME, 'data', allow_duplicate=True),
             label_value=Output('label-radio', 'value', allow_duplicate=True),
-            store_data=Output('session-store', 'data', allow_duplicate=True),
+            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -652,7 +663,8 @@ def register(app: Dash):
             logging.warning("Failed to add class because no class name is provided")
             raise PreventUpdate
 
-        activeml_cfg = common.compose_from_state(store_data)
+        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+        activeml_cfg = common.compose_from_state(selection)
         batch = Batch.from_json(store_data[StoreKey.BATCH_STATE.value])
 
         try:
@@ -707,13 +719,10 @@ def register(app: Dash):
     )
 
 
-def _init_annot_progress(store_data) -> AnnotationProgress:
-    dataset_id = store_data.get(StoreKey.DATASET_SELECTION.value)
-    embedding_id = store_data.get(StoreKey.EMBEDDING_SELECTION.value)
-
+def _init_annot_progress(selection: Selection) -> AnnotationProgress:
     return AnnotationProgress(
-        num_annotated=api.get_num_annotated(dataset_id, exclude_missing=True),
-        num_samples=api.get_total_num_samples(dataset_id, embedding_id)
+        num_annotated=api.get_num_annotated(selection.dataset_id, exclude_missing=True),
+        num_samples=api.get_total_num_samples(selection.dataset_id, selection.embedding_id)
     )
 
 

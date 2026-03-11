@@ -31,6 +31,7 @@ def _layout(**kwargs: object):
                 dcc.Location(id='url_home', refresh=True),
                 dcc.Location(id='url_home_init', refresh=False),
 
+                dcc.Store(id=ids.SELECTION_PROGRESS, storage_type="session"),
                 dcc.Store(id=ids.NEXT_PAGE_TRIGGER),
 
                 Keyboard(
