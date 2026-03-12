@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 
 import numpy as np
 from PIL import Image
@@ -87,7 +87,10 @@ class TorchVisionAdapter(EmbeddingBaseAdapter):
 
         try:
             # Load the pretrained model from PyTorch Hub
-            self.model = torch.hub.load("facebookresearch/dinov2", self.model_variant)
+            self.model = cast(
+                torch.nn.Module,
+                torch.hub.load("facebookresearch/dinov2", self.model_variant)
+            )
         except Exception as e:
             raise RuntimeError("DINOv2 model is not available") from e
 
