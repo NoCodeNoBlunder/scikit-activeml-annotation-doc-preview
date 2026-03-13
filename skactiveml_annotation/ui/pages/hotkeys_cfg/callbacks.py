@@ -14,6 +14,7 @@ from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 
 from skactiveml_annotation.core.api import camel_case_to_title
+from skactiveml_annotation.shared_ids import GO_LAST_PAGE_TRIGGER, KEYMAPPING_CFG
 from skactiveml_annotation.util import logging
 from skactiveml_annotation.ui.hotkeys import (
     HotkeyConfig,
@@ -21,13 +22,17 @@ from skactiveml_annotation.ui.hotkeys import (
     normalize_hotkey_str,
 )
 
+from . import (
+    ids,
+)
+
 
 def register(app: Dash):
     @app.callback(
-        Input("hotkey-ui-trigger", "data"),
-        State("keymapping-cfg", "data"),
+        Input(ids.UI_UPDATE_TRIGGER, "data"),
+        State(KEYMAPPING_CFG, "data"),
         output=dict(
-            hotkey_cfg_container=Output("hotkey-configuration-container", "children")
+            hotkey_cfg_container=Output(ids.CONFIGURATION_CONTAINER, "children")
         ),
         prevent_initial_call=True
     )
@@ -44,9 +49,9 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('url-hotkeys-init', "pathname"),
+        Input(ids.URL_INIT, "pathname"),
         output=dict(
-            ui_trigger=Output("hotkey-ui-trigger", "data")
+            ui_trigger=Output(ids.UI_UPDATE_TRIGGER, "data")
         )
     )
     def init_hotkey_page(
@@ -59,20 +64,20 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('confirm-hotkeys-btn', "n_clicks"),
-        State({"type": "hotkey-input", "action": ALL}, "id"),
-        State({"type": "hotkey-input", "action": ALL}, "value"),
+        Input(ids.CONFIRM_HOTKEYS_BTN, "n_clicks"),
+        State({"type": ids.HOTKEY_INPUT, "action": ALL}, "id"),
+        State({"type": ids.HOTKEY_INPUT, "action": ALL}, "value"),
         output=dict(
-            hotkey_cfg=Output("keymapping-cfg", "data", allow_duplicate=True),
-            ui_trigger=Output("hotkey-ui-trigger", "data", allow_duplicate=True),
-            errors=Output({"type": "hotkey-input", "action": ALL}, "error"),
+            hotkey_cfg=Output(KEYMAPPING_CFG, "data", allow_duplicate=True),
+            ui_trigger=Output(ids.UI_UPDATE_TRIGGER, "data", allow_duplicate=True),
+            errors=Output({"type": ids.HOTKEY_INPUT, "action": ALL}, "error"),
         ),
         prevent_initial_call=True
     )
     def on_hotkey_cfg_change_confirmed(
         n_clicks: int | None,
         ids,
-        updated_hotkeys
+        updated_hotkeys,
     ):
         if n_clicks is None:
             raise PreventUpdate
@@ -127,10 +132,10 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('reset-hotkeys-btn', "n_clicks"),
+        Input(ids.RESET_HOTKEYS_BTN, "n_clicks"),
         output=dict(
-            hotkey_cfg=Output("keymapping-cfg", "data", allow_duplicate=True),
-            ui_trigger=Output("hotkey-ui-trigger", "data", allow_duplicate=True)
+            hotkey_cfg=Output(KEYMAPPING_CFG, "data", allow_duplicate=True),
+            ui_trigger=Output(ids.UI_UPDATE_TRIGGER, "data", allow_duplicate=True)
         ),
         prevent_initial_call=True
     )
@@ -148,9 +153,9 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('back-hotkeys-btn', 'n_clicks'),
+        Input(ids.BACK_BTN, 'n_clicks'),
         output=dict(
-            go_last_page_trigger=Output("go-last-page-trigger", "data"),
+            go_last_page_trigger=Output(GO_LAST_PAGE_TRIGGER, "data"),
         ),
         prevent_initial_call=True
     )
@@ -203,7 +208,7 @@ def _build_key_mapping_ui(key_mapping: dict):
                 [
                     dmc.TextInput(
                         value=key_combo,
-                        id={"type": "hotkey-input", "action": action_id},
+                        id={"type": ids.HOTKEY_INPUT, "action": action_id},
                     ),
                     dmc.Box(button_actions()[action_id].btn_text),
                 ],

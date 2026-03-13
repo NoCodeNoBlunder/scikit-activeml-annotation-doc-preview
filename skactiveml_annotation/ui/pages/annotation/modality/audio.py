@@ -18,6 +18,10 @@ from ._model import AudioDataDisplaySetting
 from .. import ids
 
 
+AUDIO_AUTOPLAY = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'checked', 'modality': 'audio', 'index': 'autoplay' }
+AUDIO_LOOP_INPUT = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'checked', 'modality': 'audio', 'index': 'loop' }
+AUDIO_PLAYBACK_RATE_INPUT = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': 'audio', 'index': 'playback_rate' }
+
 def display(audio_data_path, audio_display_setting, format ="WAV"):
     """
     Creates a Dash Mantine AudioPlayer component from a local WAV file.
@@ -49,7 +53,6 @@ def display(audio_data_path, audio_display_setting, format ="WAV"):
     )
 
     player = dash_player.DashPlayer(
-        id="dash-player",
         url=inline_wave_file_url,
         controls=True,
         loop=audio_display_setting.loop,
@@ -79,23 +82,23 @@ def presentation_settings():
         dmc.Stack(
             [
                 dmc.Checkbox(
-                    id=ids.AUDIO_LOOP_INPUT,
+                    id=AUDIO_LOOP_INPUT,
                     label="Looping",
                     checked=default_audio_setting.loop,
-                    persistence=str(ids.AUDIO_LOOP_INPUT),
+                    persistence=str(AUDIO_LOOP_INPUT),
                     persistence_type='session'
                 ),
 
                 dmc.Checkbox(
-                    id=ids.AUDIO_AUTOPLAY,
+                    id=AUDIO_AUTOPLAY,
                     label="Autoplay",
                     checked=default_audio_setting.autoplay,
-                    persistence=str(ids.AUDIO_AUTOPLAY),
+                    persistence=str(AUDIO_AUTOPLAY),
                     persistence_type='session'
                 ),
             
                 dmc.NumberInput(
-                    id=ids.AUDIO_PLAYBACK_RATE_INPUT,
+                    id=AUDIO_PLAYBACK_RATE_INPUT,
                     min=0.2,
                     max=35,
                     step=0.1,
@@ -107,7 +110,7 @@ def presentation_settings():
                     value=default_audio_setting.playback_rate,
                     allowNegative=False,
                     # w='35%',
-                    persistence=str(ids.AUDIO_PLAYBACK_RATE_INPUT),
+                    persistence=str(AUDIO_PLAYBACK_RATE_INPUT),
                     persistence_type='session'
                 ),
             ],

@@ -18,12 +18,15 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from skactiveml_annotation.core import api
+from skactiveml_annotation.core.schema import StoreKey
 from skactiveml_annotation.hydra_schema import DatasetConfig
-from skactiveml_annotation.shared_ids import STORE_DATA
+from skactiveml_annotation.shared_ids import FOCUS_ELEMENT_TRIGGER, STORE_DATA
 from skactiveml_annotation.ui.components import sampling_input
-from skactiveml_annotation.ui.storekey import StoreKey
-# TODO:
-from skactiveml_annotation.ui.pages.home.selection import Selection, SelectionProgress, SelectionStep
+from skactiveml_annotation.ui.pages.home.selection import (
+    Selection,
+    SelectionProgress,
+    SelectionStep,
+)
 from skactiveml_annotation.util import logging
 
 from . import (
@@ -48,7 +51,7 @@ def register(app: Dash):
             selection_content=Output(ids.UI_CONTAINER, 'children', allow_duplicate=True),
             selection=Output(ids.SELECTION_PROGRESS, 'data', allow_duplicate=True),
             step=Output(ids.STEPPER, 'active', allow_duplicate=True),
-            focus=Output('focus-el-trigger', 'data', allow_duplicate=True),
+            focus=Output(FOCUS_ELEMENT_TRIGGER, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -85,7 +88,7 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('url_home_init', 'pathname'),
+        Input(ids.URL_INIT, 'pathname'),
         State(ids.SELECTION_PROGRESS, 'data'),
         output=dict(
             selection_content=Output(ids.UI_CONTAINER, 'children', allow_duplicate=True),
@@ -113,7 +116,7 @@ def register(app: Dash):
         Input(ids.NEXT_PAGE_TRIGGER, 'data'),
         State(ids.SELECTION_PROGRESS, 'data'),
         output=dict(
-            pathname=Output('url_home', 'pathname'),
+            pathname=Output(ids.URL, 'pathname'),
             store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
         ),
         initial_duplicate=True,
@@ -134,8 +137,7 @@ def register(app: Dash):
             logging.debug15("Home to embedding \n -------------------------- \n")
             pathname = f'/embedding'
 
-        store_data = { StoreKey.SELECTIONS.value: selection.model_dump()
-        }
+        store_data = { StoreKey.SELECTIONS.value: selection.model_dump() }
 
         return dict(
             pathname=pathname,
@@ -147,7 +149,7 @@ def register(app: Dash):
     clientside_callback(
         ClientsideFunction(namespace='clientside', function_name='validateConfirmButton'),
         Output(ids.CONFIRM_BUTTON, "disabled"),
-        Input("radio-selection", "value"),
+        Input(ids.RADIO_SELECTION, "value"),
     )
 
 
@@ -156,10 +158,6 @@ def _handle_confirm(
     current_step: int,
     selection: SelectionProgress,
 ):
-    # logging.debug15(f"handle_confirm triggered at step {current_step} with radio_value: {radio_value}")
-    # if current_step >= 4 or radio_value is None or n_clicks is None:
-    #     raise PreventUpdate
-
     if current_step >= Selection.size():
         set_props(ids.NEXT_PAGE_TRIGGER, dict(data=True))
         return dict(

@@ -14,6 +14,8 @@ from dash import (
 )
 from dash.exceptions import PreventUpdate
 
+from skactiveml_annotation.shared_ids import CLICK_BTN_TRIGGER, KEYMAPPING_CFG
+from skactiveml_annotation.ui.pages.home.ids import URL_INIT
 from skactiveml_annotation.util import logging
 
 MOD_KEY_MAPPING: Final = {"altKey": "Alt", "ctrlKey": "Control",
@@ -69,10 +71,10 @@ def button_actions() -> dict[str, ButtonAction]:
 
 def register_callbacks(app: Dash):
     @app.callback(
-        Input("url_home_init", "pathname"),
-        State("keymapping-cfg", "data"),
+        Input(URL_INIT, "pathname"),
+        State(KEYMAPPING_CFG, "data"),
         output=dict(
-            hotkey_cfg=Output("keymapping-cfg", "data")
+            hotkey_cfg=Output(KEYMAPPING_CFG, "data")
         )
     )
     def ensure_hotkeys_initialized(
@@ -161,7 +163,7 @@ def on_key_pressed_handler(
 
     # Simulate a button click
     set_props(
-        "click-btn-trigger",
+        CLICK_BTN_TRIGGER,
         dict(data=button_id)
     )
 

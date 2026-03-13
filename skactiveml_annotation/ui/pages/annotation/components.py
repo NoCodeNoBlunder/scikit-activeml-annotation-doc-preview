@@ -98,7 +98,7 @@ def create_sidebar():
                                     dmc.HoverCardTarget(
                                         dmc.Button(
                                             "Skip Batch",
-                                            id="skip-batch-button",
+                                            id=ids.SKIP_BATCH_BTN,
                                             color='dark'
                                         ),
                                     ),
@@ -256,7 +256,7 @@ def create_label_chips(
         children=chips,
         multiple=False,
         value=preselect,
-        id="label-radio",
+        id=ids.LABEL_CHIPS_INPUT,
     )
 
     return dmc.ScrollArea(

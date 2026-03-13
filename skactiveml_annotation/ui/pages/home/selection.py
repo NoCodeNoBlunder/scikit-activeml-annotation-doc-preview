@@ -39,8 +39,6 @@ class SelectionProgress(pydantic.BaseModel):
     def convert(self) -> Selection:
         selections = list(filter(api.not_none_type_narrowing, self.selections))
 
-        print(self.selections[0])
-
         if len(selections) < Selection.size():
             missing = [
                 field_name

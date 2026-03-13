@@ -8,6 +8,7 @@ from dash import (
 import dash_mantine_components as dmc
 
 from . import (
+    ids,
     callbacks,
 )
 
@@ -26,32 +27,32 @@ def _layout(**kwargs):
     return (
         dmc.AppShellMain(
             [
-                dcc.Location('url-embedding', refresh=True),
-                dcc.Location('url-embedding-init', refresh=False),
+                dcc.Location(ids.URL, refresh=True),
+                dcc.Location(ids.INIT, refresh=False),
                 dmc.Stack(
                     [
-                        dmc.Title("Embedding", id='embedding-title'),
+                        dmc.Title("Embedding", id=ids.TITLE),
 
                         dmc.Container(
-                            id="embedding-selection-container"
+                            id=ids.SELECTION_CONTAINER
                         ),
 
                         dmc.Group(
                             [
-                                dmc.Button("Cancel", id='cancel-embedding-button', disabled=True),
-                                dmc.Button("Start Embedding", id='embedding-button')
+                                dmc.Button("Cancel", id=ids.CANCEL_BUTTON, disabled=True),
+                                dmc.Button("Start Embedding", id=ids.CONFIRM_BUTTON)
                             ],
-                            id='embedding-button-container'
+                            id=ids.EMBEDDING_BTN_CONTAINER
                         ),
 
                         dmc.Progress(
-                            id="embedding-progress",
+                            id=ids.EMBEDDING_PROGRESS,
                             value=0,
                             size="xl",
                             animated=True,
                             style={
                                 'width': '75%',
-                                'height': '30px'
+                                'height': '30px',
                             },
                             transitionDuration=500
                         ),

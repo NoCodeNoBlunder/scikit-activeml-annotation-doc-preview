@@ -4,6 +4,7 @@ from dash import (
     State,
 )
 
+from skactiveml_annotation.shared_ids import KEYMAPPING_CFG
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.hotkeys import (
     ButtonAction,
@@ -51,9 +52,9 @@ def register(app: Dash):
     )
 
     @app.callback(
-        Input("home-keyboard", "n_keydowns"),
-        State("home-keyboard", "keydown"),
-        State("keymapping-cfg", "data"),
+        Input(ids.KEYBOARD, "n_keydowns"),
+        State(ids.KEYBOARD, "keydown"),
+        State(KEYMAPPING_CFG, "data"),
         prevent_initial_call=True
     )
     def on_key_pressed(

@@ -12,6 +12,10 @@ import dash_mantine_components as dmc
 
 from . import ids
 
+LABEL_SETTING_MODAL = { 'type': 'modal', 'index': "LabelSettingsModal" }
+AUTO_ANNOTATE_MODAL = { 'type': 'modal', 'index': "AutoAnnotateModal" }
+
+
 class SortBySetting(StrEnum):
     yaml_order = auto()
     alphabet = auto()
@@ -76,7 +80,7 @@ def create_label_settings_modal():
         ),
         withCloseButton=False,
         withOverlay=True,
-        id=ids.LABEL_SETTING_MODAL,
+        id=LABEL_SETTING_MODAL,
         title='Label settings',
         centered=True,
         shadow='xl',
@@ -87,7 +91,7 @@ def register_callbacks(app: Dash):
     @app.callback(
         Input(ids.LABEL_SETTING_BTN, 'n_clicks'),
         output=dict(
-            show_modal=Output(ids.LABEL_SETTING_MODAL, 'opened', allow_duplicate=True),
+            show_modal=Output(LABEL_SETTING_MODAL, 'opened', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -107,7 +111,7 @@ def register_callbacks(app: Dash):
         Input(ids.LABEL_SETTING_CONFIRM_BTN, 'n_clicks'),
         output=dict(
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
-            show_modal=Output(ids.LABEL_SETTING_MODAL, 'opened', allow_duplicate=True)
+            show_modal=Output(LABEL_SETTING_MODAL, 'opened', allow_duplicate=True)
         ),
         prevent_initial_call=True
     )

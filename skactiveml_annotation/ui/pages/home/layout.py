@@ -28,14 +28,14 @@ def _layout(**kwargs: object):
     return (
         dmc.Center(
             [
-                dcc.Location(id='url_home', refresh=True),
-                dcc.Location(id='url_home_init', refresh=False),
+                dcc.Location(id=ids.URL, refresh=True),
+                dcc.Location(id=ids.URL_INIT, refresh=False),
 
                 dcc.Store(id=ids.SELECTION_PROGRESS, storage_type="session"),
                 dcc.Store(id=ids.NEXT_PAGE_TRIGGER),
 
                 Keyboard(
-                    id="home-keyboard",
+                    id=ids.KEYBOARD,
                 ),
 
                 dmc.Stack(
@@ -137,11 +137,11 @@ def create_stepper():
     return (
         dmc.Stepper(
             [
-                dmc.StepperStep(id={'type': 'stepper-step', 'index': 0}, label="Dataset", description="Select a Dataset"),
-                dmc.StepperStep(id={'type': 'stepper-step', 'index': 1}, label="Embedding", description="Select embedding method"),
-                dmc.StepperStep(id={'type': 'stepper-step', 'index': 2}, label="Query Strategy", description="Select a Query Strategy"),
-                dmc.StepperStep(id={'type': 'stepper-step', 'index': 3}, label="Model", description="Select a model"),
-                dmc.StepperStep(id={'type': 'stepper-step', 'index': 4}, label="Sampling", description="Set Sampling parameters"),
+                dmc.StepperStep(label="Dataset", description="Select a Dataset"),
+                dmc.StepperStep(label="Embedding", description="Select embedding method"),
+                dmc.StepperStep(label="Query Strategy", description="Select a Query Strategy"),
+                dmc.StepperStep(label="Model", description="Select a model"),
+                dmc.StepperStep(label="Sampling", description="Set Sampling parameters"),
             ],
             id=ids.STEPPER,
             active=0,

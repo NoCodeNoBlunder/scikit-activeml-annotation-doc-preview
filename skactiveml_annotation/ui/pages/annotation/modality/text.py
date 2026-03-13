@@ -7,6 +7,9 @@ from ._model import TextDataDisplaySetting
 
 from .. import ids
 
+TEXT_FONT_SIZE_INPUT = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': 'text', 'index': 'font_size' }
+TEXT_LINE_HEIGHT_INPUT = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': 'text', 'index': 'line_height' }
+
 
 def display(path: Path, text_display_setting: TextDataDisplaySetting):
     if not path.exists():
@@ -62,7 +65,7 @@ def presentation_settings():
         dmc.Stack(
             [
                 dmc.NumberInput(
-                    id=ids.TEXT_FONT_SIZE_INPUT,
+                    id=TEXT_FONT_SIZE_INPUT,
                     min=1,
                     max=35,
                     step=1,
@@ -79,7 +82,7 @@ def presentation_settings():
                 ),
             
                 dmc.NumberInput(
-                    id=ids.TEXT_LINE_HEIGHT_INPUT,
+                    id=TEXT_LINE_HEIGHT_INPUT,
                     min=0.2,
                     max=35,
                     step=0.1,

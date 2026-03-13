@@ -42,7 +42,6 @@ def _layout(**kwargs):
     return(
         dmc.Box(
             [
-                dcc.Location(id='url-annotation', refresh=True),
                 dcc.Location(id=ids.ANNOTATION_INIT, refresh=False),
                 # Triggers
                 dcc.Store(id=ids.UI_TRIGGER),
@@ -53,17 +52,16 @@ def _layout(**kwargs):
                 dcc.Store(id=ids.ANNOT_PROGRESS, storage_type='session'),
                 dcc.Store(id=ids.ADDED_CLASS_NAME, storage_type='session'),
 
-                Keyboard(id="keyboard"),
+                Keyboard(id=ids.KEYBOARD),
 
                 label_setting_modal.create_label_settings_modal(),
                 auto_annotate_modal.create_auto_annotate_modal(),
 
-                dmc.Box(id='label-radio'),  # avoid id error
+                dmc.Box(id=ids.LABEL_CHIPS_INPUT),  # avoid id error
 
                 dmc.AppShell(
                     [
                         dmc.AppShellNavbar(
-                            id="sidebar-container-annotation",
                             children=components.create_sidebar(),
                             p="md",
                             # style={'border': '4px solid red'}
@@ -261,7 +259,6 @@ def _layout(**kwargs):
                         "collapsed": {"mobile": True},
                     },
                     padding=0,
-                    id="appshell",
                 ),
             ],
             style={

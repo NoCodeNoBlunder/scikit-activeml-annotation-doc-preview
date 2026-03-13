@@ -15,8 +15,13 @@ from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 import dash_loading_spinners
 
-
-from skactiveml_annotation.shared_ids import STORE_DATA
+from skactiveml_annotation.shared_ids import (
+    CLICK_BTN_TRIGGER,
+    FOCUS_ELEMENT_TRIGGER,
+    GO_LAST_PAGE_TRIGGER,
+    KEYMAPPING_CFG,
+    STORE_DATA,
+)
 from skactiveml_annotation.ui import clientside_callbacks
 from skactiveml_annotation.ui.components import navbar
 import skactiveml_annotation.paths as sap
@@ -31,6 +36,8 @@ from skactiveml_annotation.ui.pages import (
 cache = diskcache.Cache(sap.BACKGROUND_CALLBACK_CACHE_PATH)
 background_callback_manager = DiskcacheManager(cache)
 
+PAGE_CONTENT_CONTAINER = "page_content_container"
+APP_SPINNER_CONTAINER = "app_spinner_container"
 
 def create_app() -> Dash:
     app = Dash(
@@ -77,12 +84,12 @@ def layout(**kwargs):
                     dcc.Store('selected-ids', storage_type='session'),
 
                     # Triggers
-                    dcc.Store("click-btn-trigger"),
-                    dcc.Store("focus-el-trigger"),
-                    dcc.Store("go-last-page-trigger"),
+                    dcc.Store(CLICK_BTN_TRIGGER),
+                    dcc.Store(FOCUS_ELEMENT_TRIGGER),
+                    dcc.Store(GO_LAST_PAGE_TRIGGER),
 
                     # Hotkeys per Page
-                    dcc.Store("keymapping-cfg", storage_type="local"),
+                    dcc.Store(KEYMAPPING_CFG, storage_type="local"),
 
                     navbar.create_navbar(),
                     dmc.AppShellMain(
@@ -91,12 +98,12 @@ def layout(**kwargs):
                                 dash_loading_spinners.Pacman(
                                     fullscreen=True,
                                 ),
-                                id='app_spinner_container'
+                                id=APP_SPINNER_CONTAINER
                             ),
 
                             dmc.Container(
                                 dash.page_container,
-                                id='page_content_container',
+                                id=PAGE_CONTENT_CONTAINER,
                                 fluid=True,
                                 style={'padding': 0}
                             )
@@ -114,9 +121,9 @@ def layout(**kwargs):
 
 
 @callback(
-    Output("app_spinner_container", 'children'),
-    Input("page_content_container", 'loading_state'),
-    State("app_spinner_container", 'children'),
+    Output(APP_SPINNER_CONTAINER, 'children'),
+    Input(PAGE_CONTENT_CONTAINER, 'loading_state'),
+    State(APP_SPINNER_CONTAINER, 'children'),
 )
 def hide_page_loading_spinner(
     _,

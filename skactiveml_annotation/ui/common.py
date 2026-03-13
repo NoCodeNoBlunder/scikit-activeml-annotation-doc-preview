@@ -73,5 +73,3 @@ def get_trigger_id() -> str:
     raise RuntimeError(
         f"Unexpected type for triggered_id: {type(trigger_id).__name__}"
     )
-
-

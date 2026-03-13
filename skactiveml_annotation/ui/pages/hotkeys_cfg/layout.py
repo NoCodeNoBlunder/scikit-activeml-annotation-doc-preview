@@ -10,6 +10,7 @@ from dash_extensions import Keyboard
 import dash_mantine_components as dmc
 
 from . import (
+    ids,
     actions,
     callbacks,
 )
@@ -24,27 +25,25 @@ def register(app: Dash):
     callbacks.register(app)
 
 
-
 def _layout(**kwargs: object):
     _ = kwargs
-
     return (
         dmc.Center(
             [
-                dcc.Location(id='url-hotkeys', refresh=True),
-                dcc.Location(id='url-hotkeys-init', refresh=False),
+                dcc.Location(id=ids.URL, refresh=True),
+                dcc.Location(id=ids.URL_INIT, refresh=False),
 
-                dcc.Store(id="hotkey-ui-trigger"),
+                dcc.Store(id=ids.UI_UPDATE_TRIGGER),
 
                 Keyboard(
-                    id="hotkeys-keyboard",
+                    id=ids.KEYBOARD,
                 ),
 
                 dmc.Stack(
                     [
                         dmc.ScrollArea(
                             dmc.Container(
-                                id="hotkey-configuration-container",
+                                id=ids.CONFIGURATION_CONTAINER,
                                 py="xs",
                             ),
                             type='auto',
@@ -59,9 +58,9 @@ def _layout(**kwargs: object):
                         ),
                         dmc.Flex(
                             [
-                                dmc.Button("Reset", id="reset-hotkeys-btn", color="dark"),
-                                dmc.Button("Confirm", id="confirm-hotkeys-btn", color="dark"),
-                                dmc.Button("Back", id="back-hotkeys-btn", color="dark"),
+                                dmc.Button("Reset", id=ids.RESET_HOTKEYS_BTN, color="dark"),
+                                dmc.Button("Confirm", id=ids.CONFIRM_HOTKEYS_BTN, color="dark"),
+                                dmc.Button("Back", id=ids.BACK_BTN, color="dark"),
                             ],
                             gap="md",
                         )

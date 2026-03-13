@@ -10,13 +10,17 @@ from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 
 from skactiveml_annotation.core import api
+from skactiveml_annotation.core.schema import StoreKey
 from skactiveml_annotation.shared_ids import STORE_DATA
 
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.pages.home.selection import Selection
-from skactiveml_annotation.ui.storekey import StoreKey
+
 
 from . import ids
+
+AUTO_ANNOTATE_MODAL = { 'type': 'modal', 'index': "AutoAnnotateModal" }
+
 
 def create_auto_annotate_modal():
     return dmc.Modal(
@@ -47,7 +51,7 @@ def create_auto_annotate_modal():
                 )
             ],
         ),
-        id=ids.AUTO_ANNOTATE_MODAL,
+        id=AUTO_ANNOTATE_MODAL,
         title='Auto Annotate with Threshold',
         centered=True,
         shadow='xl',
@@ -59,7 +63,7 @@ def register_callbacks(app: Dash):
     @app.callback(
         Input(ids.AUTO_ANNOTATE_BTN, 'n_clicks'),
         output=dict(
-            modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
+            modal_open=Output(AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -80,7 +84,7 @@ def register_callbacks(app: Dash):
         State(STORE_DATA, 'data'),
         State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
         output=dict(
-            auto_annot_modal_open=Output(ids.AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
+            auto_annot_modal_open=Output(AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
         ),
         prevent_initial_call=True,
         background=True,

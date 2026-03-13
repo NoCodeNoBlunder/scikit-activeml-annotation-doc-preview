@@ -1,10 +1,25 @@
+from enum import (
+    Enum,
+    auto,
+)
 import json
+from typing import Any
 from dataclasses import dataclass
 
 import pydantic
 
 MISSING_LABEL_MARKER = 'MISSING_LABEL'
 DISCARD_MARKER = 'DISCARDED'
+
+class StoreKey(Enum):
+    @staticmethod
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[Any]):
+        return name  # Automatically use the name of the member as its value
+
+    SELECTIONS = auto()
+    BATCH_STATE = auto()
+    ANNOTATIONS_STATE = auto()
+    DATA_PRESENT_TIMESTAMP = auto()
 
 
 @dataclass

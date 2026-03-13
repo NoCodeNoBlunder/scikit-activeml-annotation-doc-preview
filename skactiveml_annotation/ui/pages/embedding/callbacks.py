@@ -16,16 +16,21 @@ from skactiveml_annotation.ui.pages.home.selection import Selection
 
 from skactiveml_annotation.core.shared_types import DashProgressFunc
 from skactiveml_annotation.shared_ids import STORE_DATA
-from skactiveml_annotation.ui.storekey import StoreKey
+
+from skactiveml_annotation.core.schema import StoreKey
 from skactiveml_annotation.util import logging
+
+from . import (
+    ids
+)
 
 
 def register(app: Dash):
     @app.callback(
-        Input('url-embedding-init', 'pathname'),
+        Input(ids.INIT, 'pathname'),
         State(STORE_DATA, 'data'),
         output=dict(
-            embedding_selection_content=Output("embedding-selection-container", 'children')
+            embedding_selection_content=Output(ids.SELECTION_CONTAINER, 'children')
         )
     )
     def setup_page(
@@ -39,10 +44,10 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input("embedding-button", 'n_clicks'),
+        Input(ids.CONFIRM_BUTTON, 'n_clicks'),
         output=dict(
-            title=Output('embedding-title', 'children'),
-            # cancel_disabled=Output("cancel-embedding-button", 'disabled')
+            title=Output(ids.TITLE, 'children'),
+            # cancel_disabled=Output(ids.CANCEL_BUTTON, 'disabled')
         ),
         prevent_initial_call=True,
     )
@@ -57,11 +62,11 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('cancel-embedding-button', 'n_clicks'),
+        Input(ids.CANCEL_BUTTON, 'n_clicks'),
         output=dict(
-            title=Output('embedding-title', 'children', allow_duplicate=True),
-            progress=Output('embedding-progress', 'value'),
-            # cancel_disabled=Output("cancel-embedding-button", 'disabled', allow_duplicate=True)
+            title=Output(ids.TITLE, 'children', allow_duplicate=True),
+            progress=Output(ids.EMBEDDING_PROGRESS, 'value'),
+            # cancel_disabled=Output(ids.CANCEL_BUTTON, 'disabled', allow_duplicate=True)
         ),
         prevent_initial_call=True
     )
@@ -77,18 +82,18 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input("embedding-button", 'n_clicks'),
+        Input(ids.CONFIRM_BUTTON, 'n_clicks'),
         State(STORE_DATA, 'data'),
-        progress=Output('embedding-progress', 'value'),
-        cancel=Input('cancel-embedding-button', 'n_clicks'),
+        progress=Output(ids.EMBEDDING_PROGRESS, 'value'),
+        cancel=Input(ids.CANCEL_BUTTON, 'n_clicks'),
         running=[
-            (Output('embedding-button', 'loading'), True, False),
-            (Output('cancel-embedding-button', 'disabled'), False, True),
-            (Output('embedding-progress', 'animated'), True, False)
+            (Output(ids.CONFIRM_BUTTON, 'loading'), True, False),
+            (Output(ids.CANCEL_BUTTON, 'disabled'), False, True),
+            (Output(ids.EMBEDDING_PROGRESS, 'animated'), True, False)
         ],
         output=dict(
-            title=Output('embedding-title', 'children', allow_duplicate=True),
-            embedding_button_container=Output('embedding-button-container', 'children')
+            title=Output(ids.TITLE, 'children', allow_duplicate=True),
+            embedding_button_container=Output(ids.EMBEDDING_BTN_CONTAINER, 'children')
         ),
         background=True,
         prevent_initial_call=True,
@@ -117,11 +122,11 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('go-home-button', 'n_clicks'),
-        Input('go-annotating-button', 'n_clicks'),
+        Input(ids.GO_HOME_BUTTON, 'n_clicks'),
+        Input(ids.GO_ANNOTATION_BUTTON, 'n_clicks'),
         State(STORE_DATA, 'data'),
         output=dict(
-            pathname=Output('url-embedding', 'pathname')
+            pathname=Output(ids.URL, 'pathname')
         ),
         prevent_initial_call=True
     )
@@ -135,12 +140,13 @@ def register(app: Dash):
 
         trigger_id = callback_context.triggered_id
 
-        if trigger_id == 'go-home-button':
+        if trigger_id == ids.GO_HOME_BUTTON:
             pathname = '/'
-        else:
-            # go-annotating-button
+        elif trigger_id == ids.GO_ANNOTATION_BUTTON:
             selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
             pathname = f'/annotation/{selection.dataset_id}'
+        else:
+            raise RuntimeError(f"Unknown trigger_id {trigger_id}")
 
         return dict(
             pathname=pathname
@@ -167,6 +173,6 @@ def _create_selected_embedding_view(store_data: dict):
 
 
 def _create_change_page_buttons():
-    home_button = dmc.Button('Home', id='go-home-button')
-    annot_button = dmc.Button("Annotation", id='go-annotating-button')
+    home_button = dmc.Button('Home', id=ids.GO_HOME_BUTTON)
+    annot_button = dmc.Button("Annotation", id=ids.GO_ANNOTATION_BUTTON)
     return [home_button, annot_button]

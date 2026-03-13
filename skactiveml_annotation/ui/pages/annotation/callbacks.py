@@ -13,6 +13,7 @@ from dash import (
     State,
     clientside_callback,
     set_props,
+    ALL,
 )
 import dash
 from dash.exceptions import PreventUpdate
@@ -20,11 +21,10 @@ import isodate
 import pydantic
 
 from skactiveml_annotation.core import api
-from skactiveml_annotation.shared_ids import STORE_DATA
+from skactiveml_annotation.shared_ids import FOCUS_ELEMENT_TRIGGER, STORE_DATA
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.pages.annotation import components
 from skactiveml_annotation.ui.pages.annotation.label_setting_modal import SortBySetting
-from skactiveml_annotation.ui.storekey import StoreKey
 from skactiveml_annotation.ui.pages.annotation.modality import (
     DataDisplaySetting,
     create_data_display,
@@ -39,6 +39,7 @@ from skactiveml_annotation.core.schema import (
     SessionConfig,
     DISCARD_MARKER,
     MISSING_LABEL_MARKER,
+    StoreKey,
 )
 
 from skactiveml_annotation.ui.pages.home.selection import Selection
@@ -48,6 +49,10 @@ from . import (
     ids,
     actions,
 )
+
+
+ALL_ANNOTATION_BTNS = {'type': ids.ACTION_BTN, 'index': ALL}
+
 
 FS_ANNOTATIONS_ADAPTER = (
     pydantic.TypeAdapter(list[Annotation])
@@ -62,7 +67,7 @@ def register(app: Dash):
     @app.callback(
         Input(ids.ANNOTATION_INIT, 'pathname'),
         State(STORE_DATA, 'data'),
-        State('batch-size-input', 'value'),
+        State(ids.BATCH_SIZE_INPUT, 'value'),
         output=dict(
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             query_trigger=Output(ids.QUERY_TRIGGER, 'data', allow_duplicate=True),
@@ -129,13 +134,13 @@ def register(app: Dash):
         Input(actions.DISCARD.btn_id, 'n_clicks'),
         Input(actions.SKIP.btn_id, 'n_clicks'),
         State(STORE_DATA, 'data'),
-        State('label-radio', 'value'),
+        State(ids.LABEL_CHIPS_INPUT, 'value'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
             store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
             annot_data=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
-            focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
+            focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data", allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -229,7 +234,7 @@ def register(app: Dash):
         State(ids.ADDED_CLASS_NAME, 'data'),
         State(ids.LABEL_SETTING_SHOW_PROBAS, 'checked'),
         State(ids.LABEL_SETTING_SORTBY, 'value'),
-        State(ids.ALL_ANNOTATION_BTNS, 'id'),
+        State(ALL_ANNOTATION_BTNS, 'id'),
         output=dict(
             label_container=Output(ids.LABELS_CONTAINER, 'children'),
             show_container=Output(ids.DATA_DISPLAY_CONTAINER, 'children'),
@@ -239,8 +244,8 @@ def register(app: Dash):
             data_width=Output(ids.DATA_DISPLAY_CONTAINER, 'w'),
             data_height=Output(ids.DATA_DISPLAY_CONTAINER, 'h'),
             annot_start_time_trigger=Output(ids.START_TIME_TRIGGER, 'data'),
-            disable_all_action_buttons=Output(ids.ALL_ANNOTATION_BTNS, 'loading', allow_duplicate=True),
-            focus_trigger=Output("focus-el-trigger", "data"),
+            disable_all_action_buttons=Output(ALL_ANNOTATION_BTNS, 'loading', allow_duplicate=True),
+            focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data"),
             added_class_name=Output(ids.ADDED_CLASS_NAME, 'data'),
         ),
         prevent_initial_call=True,
@@ -323,8 +328,8 @@ def register(app: Dash):
     @app.callback(
         Input(ids.QUERY_TRIGGER, 'data'),
         State(STORE_DATA, 'data'),
-        State('batch-size-input', 'value'),
-        State('subsampling-input', 'value'),
+        State(ids.BATCH_SIZE_INPUT, 'value'),
+        State(ids.SUBSAMPLING_INPUT, 'value'),
         output=dict(
             store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
@@ -435,7 +440,7 @@ def register(app: Dash):
 
 
     @app.callback(
-        Input('skip-batch-button', 'n_clicks'),
+        Input(ids.SKIP_BATCH_BTN, 'n_clicks'),
         State(STORE_DATA, 'data'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
@@ -443,7 +448,7 @@ def register(app: Dash):
             store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
-            focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
+            focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data", allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -486,14 +491,14 @@ def register(app: Dash):
     @app.callback(
         Input(actions.BACK.btn_id, 'n_clicks'),
         State(STORE_DATA, 'data'),
-        State('batch-size-input', 'value'),
+        State(ids.BATCH_SIZE_INPUT, 'value'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
             store_data=Output(STORE_DATA, 'data'),
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
-            focus_trigger=Output("focus-el-trigger", "data", allow_duplicate=True),
+            focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data", allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -646,7 +651,7 @@ def register(app: Dash):
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             search_value=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             added_class_name=Output(ids.ADDED_CLASS_NAME, 'data', allow_duplicate=True),
-            label_value=Output('label-radio', 'value', allow_duplicate=True),
+            label_value=Output(ids.LABEL_CHIPS_INPUT, 'value', allow_duplicate=True),
             store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
@@ -699,14 +704,14 @@ def register(app: Dash):
     # Disable buttons to prevent spamming before processing is done.
     clientside_callback(
         ClientsideFunction(namespace='clientside', function_name='disableAllButtons'),
-        Output(ids.ALL_ANNOTATION_BTNS, 'loading'),
-        Input(ids.ALL_ANNOTATION_BTNS, 'n_clicks'),
+        Output(ALL_ANNOTATION_BTNS, 'loading'),
+        Input(ALL_ANNOTATION_BTNS, 'n_clicks'),
         prevent_initial_call=True
     )
 
     clientside_callback(
         ClientsideFunction(namespace='clientside', function_name='scrollToChip'),
-        Output("label-radio", 'value'),
+        Output(ids.LABEL_CHIPS_INPUT, 'value'),
         Input(ids.LABEL_SEARCH_INPUT, "value"),
         prevent_initial_call=True,
     )

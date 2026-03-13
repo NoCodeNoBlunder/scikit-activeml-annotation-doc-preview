@@ -16,6 +16,10 @@ from skactiveml_annotation.core import api
 from .. import ids
 
 
+IMAGE_RESAMPLING_METHOD_INPUT = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': 'image', 'index': 'resampling_method' }
+IMAGE_RESIZING_FACTOR_INPUT = { 'type': ids.DATA_PRESENTATION_INPUT, 'property': 'value', 'modality': 'image', 'index': 'rescale_factor' }
+
+
 def display(
     path_to_img: Path,
     image_display_setting: ImageDataDisplaySetting,
@@ -85,7 +89,7 @@ def presentation_settings():
         dmc.Stack(
             [
                 dmc.NumberInput(
-                    id=ids.IMAGE_RESIZING_FACTOR_INPUT,
+                    id=IMAGE_RESIZING_FACTOR_INPUT,
                     min=0.25,
                     max=50,
                     clampBehavior='strict',
@@ -114,7 +118,7 @@ def presentation_settings():
                     persistence_type='session',
                     label='Resampling Method',
                     # description="Choose method",
-                    id=ids.IMAGE_RESAMPLING_METHOD_INPUT,
+                    id=IMAGE_RESAMPLING_METHOD_INPUT,
                     value=str(default_image_setting.resampling_method),
                     size="sm"
                 ),

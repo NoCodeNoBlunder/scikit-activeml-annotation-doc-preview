@@ -5,6 +5,7 @@ from dash import (
     State,
 )
 
+from skactiveml_annotation.shared_ids import KEYMAPPING_CFG
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.hotkeys import (
     ButtonAction,
@@ -13,22 +14,25 @@ from skactiveml_annotation.ui.hotkeys import (
     register_default_keybinds,
 )
 
+from . import (
+    ids,
+)
 
 RESET_ACTION = ButtonAction(
     "Hotkeys.Main.Reset",
-    "reset-hotkeys-btn",
+    ids.RESET_HOTKEYS_BTN,
     "Reset",
 )
 
 CONFIRM_ACTION = ButtonAction(
     "Hotkeys.Main.Confirm",
-    "confirm-hotkeys-btn",
+    ids.CONFIRM_HOTKEYS_BTN,
     "Confirm",
 )
 
 BACK_ACTION = ButtonAction(
     "Hotkeys.Main.Back",
-    "back-hotkeys-btn",
+    ids.BACK_BTN,
     "Back",
 )
 
@@ -55,9 +59,9 @@ def register(app: Dash):
     )
 
     @app.callback(
-        Input("hotkeys-keyboard", "n_keydowns"),
-        State("hotkeys-keyboard", "keydown"),
-        State("keymapping-cfg", "data"),
+        Input(ids.KEYBOARD, "n_keydowns"),
+        State(ids.KEYBOARD, "keydown"),
+        State(KEYMAPPING_CFG, "data"),
         prevent_initial_call=True
     )
     def on_key_pressed(
