@@ -4,6 +4,10 @@ ids = make_ids(__name__)
 
 KEYBOARD = ids('keyboard')
 
+# --- Data ---
+BATCH_STATE = ids('batch-state')
+TIME_STAMP = ids('time-stamp')
+
 # --- Containers ---
 DATA_DISPLAY_CONTAINER = ids('data-display-container')
 LABELS_CONTAINER = ids('labels-container')

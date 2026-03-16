@@ -7,20 +7,26 @@ from dash import (
     html,
     dcc,
     callback,
-    DiskcacheManager
+    DiskcacheManager,
 )
 import diskcache
 from dash.exceptions import PreventUpdate
+
+from dash_extensions.enrich import (
+    DashProxy,
+    BaseModelTransform,
+)
 
 import dash_mantine_components as dmc
 import dash_loading_spinners
 
 from skactiveml_annotation.shared_ids import (
+    BROWSER_DATA,
     CLICK_BTN_TRIGGER,
     FOCUS_ELEMENT_TRIGGER,
     GO_LAST_PAGE_TRIGGER,
     KEYMAPPING_CFG,
-    STORE_DATA,
+    SELECTION,
 )
 from skactiveml_annotation.ui import clientside_callbacks
 from skactiveml_annotation.ui.components import navbar
@@ -40,7 +46,10 @@ PAGE_CONTENT_CONTAINER = "page_content_container"
 APP_SPINNER_CONTAINER = "app_spinner_container"
 
 def create_app() -> Dash:
-    app = Dash(
+    # dash_extensions.enrich.DashProxy is used because it allows the use of
+    # pydantic models as argument and return types of dash callbacks
+    # and therefore reduces manual serde inside callbacks
+    app = DashProxy(
         __package__,
         use_pages=True,  # Use dash page feature
         pages_folder=str(sap.PAGES_PATH),
@@ -48,11 +57,13 @@ def create_app() -> Dash:
         # Allows to register callbacks on components that will be created by other callbacks,
         # and are therefore not in the initial layout.
         suppress_callback_exceptions=True,
-        prevent_initial_callbacks=True,
+        # prevent_intial_callback is not correctly types in dash_extensions
+        prevent_initial_callbacks=True,  # pyright: ignore[reportArgumentType]
         assets_folder=str(sap.ASSETS_PATH),
         title="scikit-activeml-annotation",
         background_callback_manager=background_callback_manager,
-        update_title=''
+        update_title='',
+        transforms=[BaseModelTransform()]
     )
 
     app.layout = layout
@@ -79,9 +90,8 @@ def layout(**kwargs):
             dmc.AppShell(
                 [
                     # Data stored across all pages
-                    dcc.Store('browser-data'),
-                    dcc.Store(STORE_DATA, storage_type='session'),
-                    dcc.Store('selected-ids', storage_type='session'),
+                    dcc.Store(BROWSER_DATA),
+                    dcc.Store(SELECTION, storage_type='session'),
 
                     # Triggers
                     dcc.Store(CLICK_BTN_TRIGGER),

@@ -1,7 +1,7 @@
 import re
 from io import BytesIO
 import base64
-from typing import TypeVar, TypeGuard
+from typing import TypeVar, TypeGuard, cast
 from collections import OrderedDict
 from collections.abc import Sequence
 from itertools import islice
@@ -78,7 +78,6 @@ def get_dataset_cfg_from_id(id: str) -> DatasetConfig:
     path = sap.DATA_CONFIG_PATH / f'{id}.yaml'
     return deserialize.parse_yaml_file(path, DatasetConfig)
 
-
 def get_dataset_cfg_from_path(path: Path) -> DatasetConfig:
     return deserialize.parse_yaml_file(path, DatasetConfig)
 
@@ -153,7 +152,7 @@ def request_query(
     session_cfg: SessionConfig,
     X: np.ndarray,
     filter_out_emb_indices: list[int] | None = None,
-) -> tuple[Batch, list[Annotation | None]]:
+) -> Batch:
     y = _load_or_init_annotations(X, cfg.dataset)
 
     if filter_out_emb_indices is not None:
@@ -200,20 +199,19 @@ def request_query(
     # Possibly restore annotations that have been previously skipped
     file_paths = get_file_paths(cfg.dataset.id, cfg.embedding.id, emb_indices)
     annotations_data = _deserialize_annotations(cfg.dataset.id)
+
     # file_paths are the keys
-    annotations_list = [
-        annotations_data.get(f_path, None) for f_path in file_paths
+    annotations = [
+        annotations_data.get(f_path) for f_path in file_paths
     ]
 
-    return (
-        Batch(
-            emb_indices=emb_indices,
-            class_probas=class_probas,
-            classes_sklearn=classes_sklearn,
-            progress=0,
-        ),
-        annotations_list
-    )
+    return Batch(
+        emb_indices=emb_indices,
+        class_probas=class_probas,
+        classes_sklearn=classes_sklearn,
+        progress=0,
+        annotations=annotations,
+    ).init()
 
 
 def _safe_predict_proba(
@@ -287,41 +285,6 @@ def load_embeddings(
     with np.load(str(cache_path)) as data:
         X = data['X']
     return X
-
-
-def update_json_annotations(
-    dataset_id: str,
-    embedding_id: str,
-    new_annotations: list[Annotation],
-    batch: Batch,
-):
-    file_paths = get_file_paths(dataset_id, embedding_id, batch.emb_indices)
-
-    update_annotations(
-        dataset_id, 
-        file_paths,
-        new_annotations
-    )
-
-    # Assumes the idx is on the first of the current batch
-    # Put the idx on the last element of the batch
-    increment_global_history_idx(dataset_id, len(new_annotations) - 1)
-    logging.debug15("Increment history_idx to: %s", get_global_history_idx(dataset_id))
-
-
-def get_num_annotated(dataset_id: str, exclude_missing: bool = False) -> int:
-    annotations = _deserialize_annotations(dataset_id)
-
-    if not exclude_missing:
-        return len(annotations)
-
-    return sum(
-        (
-            1
-            for annot in annotations.values()
-            if annot.label != MISSING_LABEL_MARKER
-        )
-    )
 
 
 def get_total_num_samples(dataset_id: str, embedding_id: str) -> int:
@@ -406,14 +369,6 @@ def auto_annotate(
     logging.info(f'In total annotated: {num_total_annotated}')
 
 
-def save_partial_annotations(batch: Batch, dataset_id: str, embedding_id: str, annotations: list[Annotation | None]):
-    # Save all annotations including skipped ones to update meta data.
-    # Dont save annotations that have not been looked at at all
-    # at the time of skipping the batch
-    annotated = list(filter(not_none_type_narrowing, annotations))
-    update_json_annotations(dataset_id, embedding_id, annotated, batch)
-
-
 def add_class(
     dataset_cfg: DatasetConfig,
     new_class_name: str,
@@ -429,7 +384,6 @@ def add_class(
         raise ValueError(f"Cannot add new class because '{new_class_name}' already exists.")
 
     _add_class_and_save_yaml_override(classes, new_class_name, dataset_cfg.id)
-
     _update_batch_after_class_insertion(batch, classes, new_class_name)
 
     # Invalidate cache. Force new composing when called next time.
@@ -541,6 +495,40 @@ def _load_or_init_annotations(
     return y
 
 
+def get_num_annotated(dataset_id: str, exclude_missing: bool = False) -> int:
+    annotations = _deserialize_annotations(dataset_id)
+
+    if not exclude_missing:
+        return len(annotations)
+
+    return sum(
+        (
+            1
+            for annot in annotations.values()
+            if annot.label != MISSING_LABEL_MARKER
+        )
+    )
+
+
+def update_json_annotations(
+    dataset_id: str,
+    embedding_id: str,
+    batch: Batch,
+):
+    file_paths = get_file_paths(dataset_id, embedding_id, batch.emb_indices)
+
+    update_annotations(
+        dataset_id,
+        file_paths,
+        batch.annotations,
+    )
+
+    # Assumes the idx is on the first of the current batch
+    # Put the idx on the last element of the batch
+    increment_global_history_idx(dataset_id, len(batch.annotations) - 1)
+    logging.debug15("Increment history_idx to: %s", get_global_history_idx(dataset_id))
+
+
 def _deserialize_annotations(dataset_id: str) -> OrderedDict[str, Annotation]:
     json_path = sap.ANNOTATED_PATH / f"{dataset_id}.json"
 
@@ -555,7 +543,7 @@ def _deserialize_annotations(dataset_id: str) -> OrderedDict[str, Annotation]:
     annotations_data: dict = json.loads(content)
 
     return OrderedDict(
-        (key, Annotation.model_validate(ann_data)) 
+        (key, Annotation.model_validate(ann_data))
         for key, ann_data in annotations_data.items()
     )
 
@@ -575,7 +563,7 @@ def update_annotations(
     dataset_id: str,
     file_paths: list[str],
     new_annotations: Sequence[Annotation | None],
-): 
+):
     annotations = _deserialize_annotations(dataset_id)
 
     # Get file_paths as they are the keys
@@ -841,8 +829,7 @@ def restore_batch(
     history_idx: int,
     restore_forward: bool,
     num_restore: int,
-# ) -> tuple[Batch, list[Annotation | None]]:
-) -> tuple[Batch, list[Annotation]]:
+) -> Batch:
     # When restoring backwards it will try to restore num_restore samples
     # If there are not enough samples left to restore it will restore as much as it can
     # If it cant restore it will throw an error
@@ -872,7 +859,7 @@ def restore_batch(
 
     annotations_data = _deserialize_annotations(cfg.dataset.id)
     sliced = islice(annotations_data.values(), start, end)
-    annotations = list(sliced) 
+    annotations = list(sliced)
 
     logging.debug15("len restored:")
     logging.debug15(len(annotations))
@@ -890,15 +877,13 @@ def restore_batch(
     clf.fit(X_cand, y_cand)
     class_probas = clf.predict_proba(X[emb_indices])
 
-    return (
-        Batch(
-            emb_indices=emb_indices,
-            class_probas=class_probas.tolist(),
-            classes_sklearn=_get_sklearn_classes(clf),
-            progress=0 if restore_forward else len(emb_indices) - 1
-        ),
-        annotations
-    )
+    return Batch(
+        emb_indices=emb_indices,
+        class_probas=class_probas.tolist(),
+        classes_sklearn=_get_sklearn_classes(clf),
+        progress=0 if restore_forward else len(emb_indices) - 1,
+        annotations=cast(list[Annotation | None], annotations),
+    ).init()
 
 
 def file_buffer_to_inline_data_url(file_data_buffer: BytesIO, mime: str) -> str:

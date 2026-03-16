@@ -15,9 +15,8 @@ from skactiveml_annotation.core import api
 from skactiveml_annotation.ui.pages.home.selection import Selection
 
 from skactiveml_annotation.core.shared_types import DashProgressFunc
-from skactiveml_annotation.shared_ids import STORE_DATA
+from skactiveml_annotation.shared_ids import SELECTION
 
-from skactiveml_annotation.core.schema import StoreKey
 from skactiveml_annotation.util import logging
 
 from . import (
@@ -28,17 +27,17 @@ from . import (
 def register(app: Dash):
     @app.callback(
         Input(ids.INIT, 'pathname'),
-        State(STORE_DATA, 'data'),
+        State(SELECTION, 'data'),
         output=dict(
-            embedding_selection_content=Output(ids.SELECTION_CONTAINER, 'children')
+            selection_container=Output(ids.SELECTION_CONTAINER, 'children')
         )
     )
     def setup_page(
         _,
-        store_data: dict,
+        selection: Selection,
     ):
         return dict(
-            embedding_selection_content=_create_selected_embedding_view(store_data)
+            selection_container=_create_selected_embedding_view(selection)
         )
     _ = setup_page
 
@@ -83,7 +82,6 @@ def register(app: Dash):
 
     @app.callback(
         Input(ids.CONFIRM_BUTTON, 'n_clicks'),
-        State(STORE_DATA, 'data'),
         progress=Output(ids.EMBEDDING_PROGRESS, 'value'),
         cancel=Input(ids.CANCEL_BUTTON, 'n_clicks'),
         running=[
@@ -101,7 +99,7 @@ def register(app: Dash):
     def compute_embedding(
         progress_func: DashProgressFunc, # Progress func gets passed as first arg
         n_clicks: int | None,
-        store_data: dict,
+        selection: Selection,
     ):
         if n_clicks is None:
             raise PreventUpdate
@@ -112,7 +110,7 @@ def register(app: Dash):
 
         logging.debug15("compute embedding background callback")
 
-        _compute_embedding(store_data, progress_func)
+        _compute_embedding(selection, progress_func)
 
         return dict(
             title="Embedding completed!",
@@ -124,7 +122,7 @@ def register(app: Dash):
     @app.callback(
         Input(ids.GO_HOME_BUTTON, 'n_clicks'),
         Input(ids.GO_ANNOTATION_BUTTON, 'n_clicks'),
-        State(STORE_DATA, 'data'),
+        State(SELECTION, 'data'),
         output=dict(
             pathname=Output(ids.URL, 'pathname')
         ),
@@ -133,7 +131,7 @@ def register(app: Dash):
     def change_page(
         home_clicks: int | None,
         annot_clicks: int | None,
-        store_data: dict,
+        selection: Selection,
     ):
         if home_clicks is None and annot_clicks is None:
             raise PreventUpdate
@@ -143,25 +141,22 @@ def register(app: Dash):
         if trigger_id == ids.GO_HOME_BUTTON:
             pathname = '/'
         elif trigger_id == ids.GO_ANNOTATION_BUTTON:
-            selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
             pathname = f'/annotation/{selection.dataset_id}'
         else:
             raise RuntimeError(f"Unknown trigger_id {trigger_id}")
 
         return dict(
-            pathname=pathname
+            pathname=pathname,
         )
     _ = change_page
 
 
-def _compute_embedding(store_data: dict, progress_func: DashProgressFunc):
-    selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+def _compute_embedding(selection: Selection, progress_func: DashProgressFunc):
     activeml_cfg = ui.common.compose_from_state(selection)
     api.compute_embeddings(activeml_cfg, progress_func)
 
 
-def _create_selected_embedding_view(store_data: dict):
-    selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
+def _create_selected_embedding_view(selection: Selection):
     return (
         dmc.Card(
             [

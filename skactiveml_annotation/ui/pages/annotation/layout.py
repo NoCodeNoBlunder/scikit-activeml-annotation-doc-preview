@@ -48,6 +48,8 @@ def _layout(**kwargs):
                 dcc.Store(id=ids.QUERY_TRIGGER),
                 dcc.Store(id=ids.START_TIME_TRIGGER),
                 # Data
+                dcc.Store(id=ids.BATCH_STATE, storage_type="session"),
+                dcc.Store(id=ids.TIME_STAMP, storage_type="session"),
                 dcc.Store(id=ids.DATA_DISPLAY_CFG_DATA, storage_type='session'),
                 dcc.Store(id=ids.ANNOT_PROGRESS, storage_type='session'),
                 dcc.Store(id=ids.ADDED_CLASS_NAME, storage_type='session'),

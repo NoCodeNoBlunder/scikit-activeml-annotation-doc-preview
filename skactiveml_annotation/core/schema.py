@@ -1,25 +1,11 @@
-from enum import (
-    Enum,
-    auto,
-)
 import json
-from typing import Any
+from typing import Self, override
 from dataclasses import dataclass
 
 import pydantic
 
 MISSING_LABEL_MARKER = 'MISSING_LABEL'
 DISCARD_MARKER = 'DISCARDED'
-
-class StoreKey(Enum):
-    @staticmethod
-    def _generate_next_value_(name: str, start: int, count: int, last_values: list[Any]):
-        return name  # Automatically use the name of the member as its value
-
-    SELECTIONS = auto()
-    BATCH_STATE = auto()
-    ANNOTATIONS_STATE = auto()
-    DATA_PRESENT_TIMESTAMP = auto()
 
 
 @dataclass
@@ -33,29 +19,110 @@ class SessionConfig:
             self.subsampling = None
 
 
-# Dont use pydantic because it does not serialize private fields
-class Batch:
-    def __init__(
-        self,
-        emb_indices: list[int],
-        classes_sklearn: list[str],
-        class_probas: list[list[float]] | None = None,
-        progress: int = 0
-    ):
-        if not (0 <= progress <= len(emb_indices)):
+class AnnotationMetaData(pydantic.BaseModel):
+    # TODO: use datetime here instead of str pydantic can handle it.
+    first_view_time: str = '' # Time when the sample was first presented
+    total_view_duration: str = '' # Total presentation time
+    last_edit_time: str = '' # Last time when a change was made
+    skip_intended_cnt: int = 0 # How many time the sample has been activly skipped
+
+
+class Annotation(pydantic.BaseModel):
+    embedding_idx: int
+    label: str
+    meta_data: AnnotationMetaData
+
+
+
+class Batch(pydantic.BaseModel):
+    progress: int = 0
+    emb_indices: list[int]
+    classes_sklearn: list[str]
+    annotations: list[Annotation | None] = []
+    class_probas: list[list[float]] | None = None
+
+    _min_progress: int = pydantic.PrivateAttr()
+    _max_progress: int = pydantic.PrivateAttr()
+
+    def init(self) -> Self:
+        if not (0 <= self.progress <= len(self.emb_indices)):
             raise ValueError("Initial progress out of range")
+        self._min_progress = self.progress
+        self._max_progress = self.progress
 
-        self.emb_indices = emb_indices
-        self.class_probas = class_probas
-        self.classes_sklearn = classes_sklearn
+        return self
 
-        self._progress = progress
-        self._min_progress = progress
-        self._max_progress = progress
 
-    @property
-    def progress(self) -> int:
-        return self._progress
+    def get_annotation_not_none(self) -> Annotation:
+        annot = self.get_annotation()
+        if annot is None:
+            # TODO:
+            raise ValueError
+        return annot
+
+
+    def get_emb_index(self) -> int:
+        return self.emb_indices[self.progress]
+
+    def get_annotation(self) -> Annotation | None:
+        return self.annotations[self.progress]
+
+    def add_annotation(self, annot: Annotation):
+        self.annotations[self.progress] = annot
+
+    def get_progress_percent(self) -> float:
+        return (self.progress / len(self.emb_indices)) * 100
+    
+    def concat(self, other: Self, progress: int = 0) -> Self:
+        class_probas = (
+            self.class_probas + other.class_probas
+            if self.class_probas is not None and other.class_probas is not None
+            else None
+        )
+
+        return type(self)(
+            progress=progress,
+            emb_indices=self.emb_indices + other.emb_indices,
+            # TODO: why use only other?
+            classes_sklearn=other.classes_sklearn,
+            class_probas=class_probas,
+            annotations=self.annotations + other.annotations,
+        ).init()
+
+    # Have to override pydantic behaviour because it does not serde
+    # private attributes
+    @override
+    def model_dump(self, *args, **kwargs) -> dict:
+        data = super().model_dump(*args, **kwargs)
+        data["_min_progress"] = self._min_progress
+        data["_max_progress"] = self._max_progress
+        return data
+
+    @override
+    @classmethod
+    def model_validate(cls, data: dict | Self, *args, **kwargs) -> Self:
+        if isinstance(data, cls):
+            return data
+
+        data = dict(data)
+        _min_progress = data.pop("_min_progress")
+        _max_progress = data.pop("_max_progress")
+
+        batch = super().model_validate(data, *args, **kwargs)
+
+        batch._min_progress = _min_progress
+        batch._max_progress = _max_progress
+        return batch
+
+
+    @override
+    def model_dump_json(self, *args, **kwargs) -> str:
+        return json.dumps(self.model_dump(*args, **kwargs))
+
+    @override
+    @classmethod
+    def model_validate_json(cls, data: str, *args, **kwargs) -> Self:
+        return cls.model_validate(json.loads(data))
 
     def advance(self, step: int):
         if not self.is_advanceable(step):
@@ -63,7 +130,7 @@ class Batch:
                 f"Cannot advance batch by {step} because it would result out of bounds"
             )
 
-        self._progress += step
+        self.progress += step
         self._min_progress = min(self._min_progress, self.progress)
         self._max_progress = max(self._max_progress, self.progress)
 
@@ -82,44 +149,6 @@ class Batch:
 
     def __len__(self) -> int:
         return len(self.emb_indices)
-
-    # -- Serialization & Deserialization --
-    def to_json(self) -> str:
-        data = {
-            "emb_indices": self.emb_indices,
-            "class_probas": self.class_probas,
-            "classes_sklearn": self.classes_sklearn,
-            "_progress": self._progress,
-            "_min_progress": self._min_progress,
-            "_max_progress": self._max_progress
-        }
-        return json.dumps(data)
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "Batch":
-        data = json.loads(json_str)
-        batch = cls(
-            emb_indices=data["emb_indices"],
-            class_probas=data.get("class_probas", None),
-            classes_sklearn=data.get("classes_sklearn", None),
-            progress=data["_progress"]
-        )
-        batch._min_progress = data["_min_progress"]
-        batch._max_progress = data["_max_progress"]
-        return batch
-
-
-class AnnotationMetaData(pydantic.BaseModel):
-    first_view_time: str = '' # Time when the sample was first presented
-    total_view_duration: str = '' # Total presentation time
-    last_edit_time: str = '' # Last time when a change was made
-    skip_intended_cnt: int = 0 # How many time the sample has been activly skipped
-
-
-class Annotation(pydantic.BaseModel):
-    embedding_idx: int
-    label: str
-    meta_data: AnnotationMetaData
 
 
 class HistoryIdx(pydantic.BaseModel):

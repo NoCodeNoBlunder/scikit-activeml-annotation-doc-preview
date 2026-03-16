@@ -10,8 +10,9 @@ from dash.exceptions import PreventUpdate
 import dash_mantine_components as dmc
 
 from skactiveml_annotation.core import api
-from skactiveml_annotation.core.schema import StoreKey
-from skactiveml_annotation.shared_ids import STORE_DATA
+from skactiveml_annotation.shared_ids import (
+    SELECTION,
+)
 
 from skactiveml_annotation.ui import common
 from skactiveml_annotation.ui.pages.home.selection import Selection
@@ -81,7 +82,7 @@ def register_callbacks(app: Dash):
 
     @app.callback(
         Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
-        State(STORE_DATA, 'data'),
+        State(SELECTION, 'data'),
         State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
         output=dict(
             auto_annot_modal_open=Output(AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
@@ -91,13 +92,12 @@ def register_callbacks(app: Dash):
     )
     def on_auto_annotate(
         click: int | None,
-        store_data: dict,
+        selection: Selection,
         threshold: float,
     ):
         if click is None:
             raise PreventUpdate
 
-        selection = Selection.model_validate(store_data[StoreKey.SELECTIONS.value])
         activeml_cfg = common.compose_from_state(selection)
         X = api.load_embeddings(
             activeml_cfg.dataset.id,

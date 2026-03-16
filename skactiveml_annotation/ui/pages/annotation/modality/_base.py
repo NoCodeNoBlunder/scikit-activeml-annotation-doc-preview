@@ -60,7 +60,7 @@ def create_data_presentation_settings(modality: Modality):
         return image.presentation_settings()
     elif modality == Modality.TEXT:
         return text.presentation_settings()
-    else:
+    elif modality == Modality.AUDIO:
         return audio.presentation_settings()
 
 
@@ -81,26 +81,23 @@ def register_callbacks(app: Dash):
     )
     def on_apply_data_presentation_settings(
         n_clicks: int | None,
-        display_settings_json: dict,
+        display_settings: DataDisplaySetting,
         checked_ids: list[dict[str, str]],
         checked_values: list[bool],
-        value_ids: list[dict[str, str]],
-        value_values: list[str | bool | int | float],
+        ids: list[dict[str, str]],
+        values: list[str | bool | int | float],
     ):
         if n_clicks is None:
             raise PreventUpdate
 
-        display_settings = DataDisplaySetting.model_validate(display_settings_json)
-
         _apply_updates(display_settings, checked_ids, checked_values)
-        _apply_updates(display_settings, value_ids, value_values)
+        _apply_updates(display_settings, ids, values)
 
         return dict(
             ui_trigger=True,
-            display_settings=display_settings.model_dump()
+            display_settings=display_settings,
         )
     _ = on_apply_data_presentation_settings
-
 
 
 def _apply_updates(

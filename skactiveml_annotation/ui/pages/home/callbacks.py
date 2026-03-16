@@ -18,9 +18,11 @@ import dash_mantine_components as dmc
 from dash_iconify import DashIconify
 
 from skactiveml_annotation.core import api
-from skactiveml_annotation.core.schema import StoreKey
 from skactiveml_annotation.hydra_schema import DatasetConfig
-from skactiveml_annotation.shared_ids import FOCUS_ELEMENT_TRIGGER, STORE_DATA
+from skactiveml_annotation.shared_ids import (
+    FOCUS_ELEMENT_TRIGGER,
+    SELECTION,
+)
 from skactiveml_annotation.ui.components import sampling_input
 from skactiveml_annotation.ui.pages.home.selection import (
     Selection,
@@ -61,17 +63,15 @@ def register(app: Dash):
         new_active: int | None,
         radio_value: str,
         current_step: int,
-        selection_data: dict | None,
+        selection: SelectionProgress | None,
     ):
         if (
-            selection_data is None
+            selection is None
             or (confirm_clicks is None and back_clicks is None and new_active is None)
         ):
             raise PreventUpdate
 
         trigger_id = ctx.triggered_id
-
-        selection = SelectionProgress.model_validate(selection_data)
 
         if trigger_id == ids.CONFIRM_BUTTON:
             return _handle_confirm(radio_value, current_step, selection)
@@ -98,16 +98,16 @@ def register(app: Dash):
     )
     def setup_page(
         _,
-        selection_data: dict | None,
+        selection_data: SelectionProgress | None,
     ):
         if selection_data is None:
             selection = SelectionProgress()
         else:
-            selection = SelectionProgress.model_validate(selection_data)
+            selection = selection_data
 
         return dict(
             selection_content=_create_step_ui(SelectionStep(0), selection),
-            selection=selection.model_dump(),
+            selection=selection,
         )
     _ = setup_page
 
@@ -117,18 +117,18 @@ def register(app: Dash):
         State(ids.SELECTION_PROGRESS, 'data'),
         output=dict(
             pathname=Output(ids.URL, 'pathname'),
-            store_data=Output(STORE_DATA, 'data', allow_duplicate=True),
+            selection=Output(SELECTION, 'data', allow_duplicate=True),
         ),
         initial_duplicate=True,
     )
     def go_to_next_page(
-        pathname,
-        selection_data: dict,
+        trigger: bool | None,
+        selection_progress: SelectionProgress,
     ):
-        if pathname is None:
+        if trigger is None:
             raise PreventUpdate
 
-        selection = SelectionProgress.model_validate(selection_data).convert()
+        selection = selection_progress.convert()
 
         if api.is_dataset_embedded(selection.dataset_id, selection.embedding_id):
             logging.debug15("Home to annotation \n -------------------------- \n")
@@ -137,11 +137,9 @@ def register(app: Dash):
             logging.debug15("Home to embedding \n -------------------------- \n")
             pathname = f'/embedding'
 
-        store_data = { StoreKey.SELECTIONS.value: selection.model_dump() }
-
         return dict(
             pathname=pathname,
-            store_data=store_data,
+            selection=selection,
         )
     _ = go_to_next_page
 
@@ -178,7 +176,7 @@ def _handle_confirm(
 
     return dict(
         selection_content=_create_step_ui(new_step, selection),
-        selection=selection.model_dump(),
+        selection=selection,
         step=new_step,
         focus=ids.UI_CONTAINER,
     )

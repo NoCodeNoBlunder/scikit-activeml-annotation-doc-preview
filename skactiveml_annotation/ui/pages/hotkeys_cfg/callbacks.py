@@ -1,6 +1,6 @@
 
 from collections import defaultdict
-from typing import Final
+from typing import Any, Final, Literal
 from dash import (
     ALL,
     Dash,
@@ -36,8 +36,8 @@ def register(app: Dash):
         ),
         prevent_initial_call=True
     )
-    def update_hotkey_page(_, hotkey_cfg_json):
-        mapping = HotkeyConfig.model_validate(hotkey_cfg_json).mapping
+    def update_hotkey_page(_, hotkey_cfg: HotkeyConfig):
+        mapping = hotkey_cfg.mapping
 
         content = dmc.Stack(
             [_build_page_ui(page, modal_mapping)
@@ -76,15 +76,15 @@ def register(app: Dash):
     )
     def on_hotkey_cfg_change_confirmed(
         n_clicks: int | None,
-        ids,
-        updated_hotkeys,
+        ids: list[dict[str, Any]],
+        updated_hotkeys: list[Any],
     ):
         if n_clicks is None:
             raise PreventUpdate
 
         num_inputs: Final = len(ids)
 
-        errors: list[str | bool] = [False] * num_inputs
+        errors: list[str | Literal[False]] = [False] * num_inputs
 
         # Create a 2-level nested defaultdict:
         # updated_cfg[key1][key2] is always initialized to an empty dict.
