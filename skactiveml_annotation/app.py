@@ -52,7 +52,7 @@ def create_app() -> Dash:
     app = DashProxy(
         __package__,
         use_pages=True,  # Use dash page feature
-        pages_folder=str(sap.PAGES_PATH),
+        pages_folder="", # Manually register pages instead of dash doing it.
         external_stylesheets=[dmc.theme.DEFAULT_THEME] + dmc.styles.ALL,
         # Allows to register callbacks on components that will be created by other callbacks,
         # and are therefore not in the initial layout.

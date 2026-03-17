@@ -4,6 +4,7 @@ from dash import (
     Input,
     Output,
     State,
+    callback,
     callback_context,
 )
 from dash.exceptions import PreventUpdate
@@ -80,8 +81,9 @@ def register(app: Dash):
     _ = on_cancel
 
 
-    @app.callback(
+    @callback(
         Input(ids.CONFIRM_BUTTON, 'n_clicks'),
+        State(SELECTION, 'data'),
         progress=Output(ids.EMBEDDING_PROGRESS, 'value'),
         cancel=Input(ids.CANCEL_BUTTON, 'n_clicks'),
         running=[
@@ -99,7 +101,7 @@ def register(app: Dash):
     def compute_embedding(
         progress_func: DashProgressFunc, # Progress func gets passed as first arg
         n_clicks: int | None,
-        selection: Selection,
+        selection_json: str,
     ):
         if n_clicks is None:
             raise PreventUpdate
@@ -110,6 +112,7 @@ def register(app: Dash):
 
         logging.debug15("compute embedding background callback")
 
+        selection = Selection.model_validate_json(selection_json)
         _compute_embedding(selection, progress_func)
 
         return dict(

@@ -3,6 +3,7 @@ from dash import (
     Input,
     Output,
     State,
+    callback,
 )
 
 from dash.exceptions import PreventUpdate
@@ -80,7 +81,7 @@ def register_callbacks(app: Dash):
     _ = open_modal
 
 
-    @app.callback(
+    @callback(
         Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
         State(SELECTION, 'data'),
         State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
@@ -92,12 +93,13 @@ def register_callbacks(app: Dash):
     )
     def on_auto_annotate(
         click: int | None,
-        selection: Selection,
+        selection_json: str,
         threshold: float,
     ):
         if click is None:
             raise PreventUpdate
 
+        selection = Selection.model_validate_json(selection_json)
         activeml_cfg = common.compose_from_state(selection)
         X = api.load_embeddings(
             activeml_cfg.dataset.id,
