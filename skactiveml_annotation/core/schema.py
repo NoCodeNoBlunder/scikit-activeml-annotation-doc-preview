@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta
 import json
 from typing import Self, override
 from dataclasses import dataclass
 
+import isodate
 import pydantic
 
 MISSING_LABEL_MARKER = 'MISSING_LABEL'
@@ -20,11 +22,21 @@ class SessionConfig:
 
 
 class AnnotationMetaData(pydantic.BaseModel):
-    # TODO: use datetime here instead of str pydantic can handle it.
-    first_view_time: str = '' # Time when the sample was first presented
-    total_view_duration: str = '' # Total presentation time
-    last_edit_time: str = '' # Last time when a change was made
-    skip_intended_cnt: int = 0 # How many time the sample has been activly skipped
+    first_view_time: datetime      # Time when the sample was first presented
+    last_edit_time: datetime       # Last time when a change was made
+    total_view_duration: timedelta # Total presentation time
+    skip_intended_cnt: int = 0     # How many time the sample has been activly skipped
+
+    @pydantic.field_validator("total_view_duration", mode="before")
+    @classmethod
+    def parse_duration(cls, value: str | timedelta) -> timedelta:
+        if isinstance(value, str):
+            return isodate.parse_duration(value)
+        return value
+
+    @pydantic.field_serializer("total_view_duration")
+    def serialize_duration(self, value: timedelta) -> str:
+        return isodate.duration_isoformat(value)
 
 
 class Annotation(pydantic.BaseModel):
@@ -117,7 +129,7 @@ class Batch(pydantic.BaseModel):
 
     @override
     def model_dump_json(self, *args, **kwargs) -> str:
-        return json.dumps(self.model_dump(*args, **kwargs))
+        return json.dumps(self.model_dump(*args, mode='json', **kwargs))
 
     @override
     @classmethod

@@ -633,26 +633,17 @@ def _init_or_update_annot_metadata(
 
     if old_annotation is None:
         # New Annotation
-        first_view_time = start_time.isoformat()
-        total_view_duration = isodate.duration_isoformat(delta_time)
-        skip_intended_cnt = 0
-        last_edit_time=end_time.isoformat()
-    else:
-        # Sample was annotated before. Update the metadata
-        old_delta_time = isodate.parse_duration(old_annotation.meta_data.total_view_duration)
-        first_view_time = old_annotation.meta_data.first_view_time
-        total_view_duration = isodate.duration_isoformat(delta_time + old_delta_time)
-        skip_intended_cnt = old_annotation.meta_data.skip_intended_cnt
+        return AnnotationMetaData(
+            first_view_time=start_time,
+            total_view_duration=delta_time,
+            last_edit_time=end_time,
+        )
 
-        prev_label = old_annotation.label
-        if prev_label != updated_label:
-            last_edit_time = end_time.isoformat()
-        else:
-            last_edit_time = old_annotation.meta_data.last_edit_time
-
+    old_meta = old_annotation.meta_data
+    label_changed = old_annotation.label != updated_label
     return AnnotationMetaData(
-        first_view_time=first_view_time,
-        total_view_duration=total_view_duration,
-        last_edit_time=last_edit_time,
-        skip_intended_cnt=skip_intended_cnt,
+        first_view_time=old_meta.first_view_time,
+        total_view_duration=old_meta.total_view_duration + delta_time,
+        last_edit_time=end_time if label_changed else old_meta.last_edit_time,
+        skip_intended_cnt=old_meta.skip_intended_cnt,
     )

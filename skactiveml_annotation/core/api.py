@@ -553,12 +553,13 @@ def _serialize_annotations(dataset_id: str, annotations: OrderedDict[str, Annota
     with json_path.open("w") as f:
         json.dump(
             OrderedDict(
-                [(key, ann.model_dump()) for key, ann in annotations.items()]
+                [(key, ann.model_dump(mode='json')) for key, ann in annotations.items()]
             ),
             f,
             indent=4
         )
 
+# TODO: is this method needed when there is update_annotation_json()
 def update_annotations(
     dataset_id: str,
     file_paths: list[str],
@@ -583,10 +584,10 @@ def _serialize_automatic_and_manual_annotations(
 ):
     payload = {
         'manual': {
-            f_path: ann.model_dump() for f_path, ann in manual_annotations.items()
+            f_path: ann.model_dump(mode='json') for f_path, ann in manual_annotations.items()
         },
         'automatic': {
-            f_path: ann.model_dump() for f_path, ann in auto_annotations.items()
+            f_path: ann.model_dump(mode='json') for f_path, ann in auto_annotations.items()
         },
     }
 
