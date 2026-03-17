@@ -1,11 +1,12 @@
 from argparse import ArgumentParser
+import logging
 
 from dash import Dash
 
+from skactiveml_annotation import util
 from skactiveml_annotation.app import create_app
 import skactiveml_annotation.paths as sap
 
-from skactiveml_annotation.util import logging
 
 PORT = 8050
 
@@ -30,12 +31,12 @@ def main():
 def run_debug_mode(app: Dash):
     import os
     if os.environ.get("WERKZEUG_RUN_MAIN") == 'true':
-        logging.setup_logging()
+        util.logging.setup_logging()
 
     app.run(debug=True, host='localhost', dev_tools_hot_reload_interval=1, port=PORT)
 
 def run_profile_mode(app: Dash):
-    logging.setup_logging()
+    util.logging.setup_logging()
 
     try:
         from werkzeug.middleware.profiler import ProfilerMiddleware
@@ -56,7 +57,7 @@ def run_profile_mode(app: Dash):
 
 
 def run_prod_mode(app: Dash):
-    logging.setup_logging()
+    util.logging.setup_logging()
     import webbrowser
     try:
         from waitress import serve  # pyright: ignore[reportMissingModuleSource]

@@ -1,4 +1,5 @@
 from typing import Protocol, Sequence
+import logging
 
 from dash import (
     ClientsideFunction,
@@ -29,7 +30,6 @@ from skactiveml_annotation.ui.pages.home.selection import (
     SelectionProgress,
     SelectionStep,
 )
-from skactiveml_annotation.util import logging
 
 from . import (
     ids,
@@ -131,10 +131,8 @@ def register(app: Dash):
         selection = selection_progress.convert()
 
         if api.is_dataset_embedded(selection.dataset_id, selection.embedding_id):
-            logging.debug15("Home to annotation \n -------------------------- \n")
             pathname = f'/annotation/{selection.dataset_id}'
         else:
-            logging.debug15("Home to embedding \n -------------------------- \n")
             pathname = f'/embedding'
 
         return dict(

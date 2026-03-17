@@ -3,6 +3,7 @@ from datetime import (
     timezone,
 )
 from pathlib import Path
+import logging
 
 from dash import (
     ClientsideFunction,
@@ -16,7 +17,6 @@ from dash import (
 )
 import dash
 from dash.exceptions import PreventUpdate
-import isodate
 
 from skactiveml_annotation.core import api
 from skactiveml_annotation.shared_ids import (
@@ -44,7 +44,6 @@ from skactiveml_annotation.core.schema import (
 )
 
 from skactiveml_annotation.ui.pages.home.selection import Selection
-from skactiveml_annotation.util import logging
 
 from . import (
     ids,
@@ -257,7 +256,6 @@ def register(app: Dash):
         )
 
         if data_display_setting is None:
-            logging.debug15("Data Display Setting is not yet initialized. Initializing now.")
             data_display_setting = DataDisplaySetting()
 
         rendered_data, w, h = create_data_display(
@@ -320,7 +318,6 @@ def register(app: Dash):
         num_restorable = max(0, history_size - (global_history_idx + 1))
 
         if num_restorable >= batch_size:
-            logging.debug15("No Active ML needed")
             # No Active ML needed just restore Batch size many samples
             batch = api.restore_batch(activeml_cfg, global_history_idx, True, batch_size)
 
@@ -328,25 +325,19 @@ def register(app: Dash):
             api.increment_global_history_idx(dataset_id, 1)
 
         else:
-            logging.debug15("Must use active ml")
             # Active learning needed. But first restore what is left to restore
             if num_restorable > 0:
-                logging.debug15(f"Can still restore {num_restorable} samples before Active ML")
                 batch_one = api.restore_batch(activeml_cfg, global_history_idx, True, num_restorable)
                 emb_indices_one = batch_one.emb_indices
                 api.increment_global_history_idx(dataset_id, 1)
 
                 # Only the difference has to be queried
                 session_cfg.batch_size = batch_size - num_restorable
-                logging.debug15(f"Do active learning to get {session_cfg.batch_size} samples")
 
                 X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
 
                 # Remove samples from pool that have been restored. To avoid possible duplication
                 batch_two = api.request_query(activeml_cfg, session_cfg, X, emb_indices_one)
-
-                logging.debug15("queried batch emb indices:")
-                logging.debug15(batch_two.emb_indices)
 
                 batch = batch_one.concat(batch_two)
 
@@ -355,7 +346,6 @@ def register(app: Dash):
                 api.set_global_history_idx(dataset_id, new_history_idx)
 
                 session_cfg.batch_size = batch_size - num_restorable
-                logging.debug15(f"Do active learning to get {session_cfg.batch_size} samples")
 
                 X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
                 batch = api.request_query(activeml_cfg, session_cfg, X)
@@ -452,7 +442,6 @@ def register(app: Dash):
         batch.add_annotation(annotation)
 
         if batch.progress == 0:
-            logging.debug15("Have to get last batch to be able to go back.")
             dataset_id = selection.dataset_id
             embedding_id = selection.embedding_id
             file_paths = api.get_file_paths(dataset_id, embedding_id, batch.emb_indices)
@@ -476,7 +465,6 @@ def register(app: Dash):
                 )
 
             api.increment_global_history_idx(dataset_id, -len(batch))
-            logging.debug15(f"info decrementing global idx to: {api.get_global_history_idx(dataset_id)}")
 
             # Annotations can decrease if a previous annotation of was changed to SKIP
             annot_progress.num_annotated = api.get_num_annotated(dataset_id, exclude_missing=True)

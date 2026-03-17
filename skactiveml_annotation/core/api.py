@@ -10,6 +10,7 @@ import inspect
 from functools import partial, lru_cache
 from pathlib import Path
 from typing import Callable
+import logging
 
 import hydra
 import pydantic
@@ -25,7 +26,6 @@ from skactiveml.classifier import SklearnClassifier
 from skactiveml.pool import SubSamplingWrapper
 from sklearn.preprocessing import LabelEncoder
 
-from skactiveml_annotation.util import logging
 from skactiveml_annotation import util
 from skactiveml_annotation.util import deserialize
 import skactiveml_annotation.paths as sap
@@ -526,7 +526,6 @@ def update_json_annotations(
     # Assumes the idx is on the first of the current batch
     # Put the idx on the last element of the batch
     increment_global_history_idx(dataset_id, len(batch.annotations) - 1)
-    logging.debug15("Increment history_idx to: %s", get_global_history_idx(dataset_id))
 
 
 def _deserialize_annotations(dataset_id: str) -> OrderedDict[str, Annotation]:
@@ -784,7 +783,6 @@ def ensure_global_history_idx_init(dataset_id: str):
             # Assume there have been annotations made but the index is missing
             global_history_idx = history_size - 1
             
-        logging.debug15("Initializing global history idx to", global_history_idx)
         set_global_history_idx(dataset_id, global_history_idx)
 
 
@@ -836,7 +834,6 @@ def restore_batch(
     # If it cant restore it will throw an error
     # Assumes annotations are stored in json in the same order they were made.
     logging.info("\nRestore Batch")
-    logging.debug15("history idx:", history_idx)
     # History_idx is exclusive and wont be restored
 
     if restore_forward:
@@ -855,15 +852,9 @@ def restore_batch(
         elif num_restorable < num_restore:
             logging.info(f"Can not restore backwards {num_restore}, only {num_restorable} will be restored")
         
-    logging.debug15(f"start: {start}")
-    logging.debug15(f"end: {end} (exclusive)")
-
     annotations_data = _deserialize_annotations(cfg.dataset.id)
     sliced = islice(annotations_data.values(), start, end)
     annotations = list(sliced)
-
-    logging.debug15("len restored:")
-    logging.debug15(len(annotations))
 
     emb_indices = [annot.embedding_idx for annot in annotations]
     

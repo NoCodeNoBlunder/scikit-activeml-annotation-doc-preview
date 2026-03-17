@@ -18,7 +18,7 @@ from skactiveml_annotation.ui.pages.home.selection import Selection
 from skactiveml_annotation.core.shared_types import DashProgressFunc
 from skactiveml_annotation.shared_ids import SELECTION
 
-from skactiveml_annotation.util import logging
+from skactiveml_annotation import util
 
 from . import (
     ids
@@ -108,9 +108,7 @@ def register(app: Dash):
 
         # The background Callback runs in a different process.
         # Logging needs to be initialized in this new context
-        logging.setup_logging_background_callback()
-
-        logging.debug15("compute embedding background callback")
+        util.logging.setup_logging_background_callback()
 
         selection = Selection.model_validate_json(selection_json)
         _compute_embedding(selection, progress_func)

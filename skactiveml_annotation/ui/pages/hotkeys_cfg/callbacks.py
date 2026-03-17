@@ -15,7 +15,6 @@ import dash_mantine_components as dmc
 
 from skactiveml_annotation.core.api import camel_case_to_title
 from skactiveml_annotation.shared_ids import GO_LAST_PAGE_TRIGGER, KEYMAPPING_CFG
-from skactiveml_annotation.util import logging
 from skactiveml_annotation.ui.hotkeys import (
     HotkeyConfig,
     button_actions,
@@ -95,9 +94,7 @@ def register(app: Dash):
             action_id = entry_id['action']
 
             # i.e. Page.Modal.Confirm
-            page, modal, action = action_id.split(".")
-            logging.debug15("page, modal, action:")
-            logging.debug15(page, modal, action)
+            page, modal, _ = action_id.split(".")
 
             try:
                 new_normalized_hotkey = normalize_hotkey_str(new_hotkey)
@@ -117,8 +114,6 @@ def register(app: Dash):
                 ui_trigger=dash.no_update,
                 errors=errors,
             )
-
-        logging.debug15("updated_cfg:\n", updated_cfg)
 
         return dict(
             hotkey_cfg=HotkeyConfig(

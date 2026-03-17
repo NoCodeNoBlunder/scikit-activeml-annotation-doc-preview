@@ -2,6 +2,7 @@ from collections import Counter
 import json
 from dataclasses import dataclass
 from typing import Final
+import logging
 
 import pydantic
 
@@ -16,7 +17,6 @@ from dash.exceptions import PreventUpdate
 
 from skactiveml_annotation.shared_ids import CLICK_BTN_TRIGGER, KEYMAPPING_CFG
 from skactiveml_annotation.ui.pages.home.ids import URL_INIT
-from skactiveml_annotation.util import logging
 
 MOD_KEY_MAPPING: Final = {"altKey": "Alt", "ctrlKey": "Control",
                           "shiftKey": "Shift", "metaKey": "Meta"}
@@ -82,8 +82,6 @@ def register_callbacks(app: Dash):
         hotkey_cfg_json,
     ):
         if hotkey_cfg_json is None:
-            logging.debug15("Initializing hotkeys to default bindings.")
-            logging.debug15(DEFAULT_KEYBINDS)
             return dict(
                 hotkey_cfg=HotkeyConfig().model_dump()
             )
@@ -104,8 +102,6 @@ def register_callbacks(app: Dash):
             raise PreventUpdate
 
         # Updating non-user defined hotkeys to latest defaults
-        logging.debug15("Updating non-user-defined hotkeys to latest defaults")
-        logging.debug15(DEFAULT_KEYBINDS)
         hotkey_cfg = HotkeyConfig()
 
         return dict(
@@ -124,8 +120,6 @@ def on_key_pressed_handler(
     # Prevent Key repeat events from doing anything
     if trigger is None or key_event["repeat"]:
         raise PreventUpdate
-
-    logging.debug15(json.dumps(key_event))
 
     mapping = hotkey_cfg.mapping
 
@@ -153,13 +147,11 @@ def on_key_pressed_handler(
 
     button_action_id = key_mapping.get(normalized_hotkey, None)
     if button_action_id is None:
-        logging.debug15(f"Key Combo: {normalized_hotkey} is not bound. No Action is fired.")
+        logging.debug(f"Key Combo: {normalized_hotkey} is not bound. No Action is fired.")
         raise PreventUpdate
 
     button_action = __button_actions[button_action_id]
-
     button_id = button_action.btn_id
-    logging.debug15(f"Button id: {button_id}")
 
     # Simulate a button click
     set_props(

@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 import pydantic
 
@@ -15,7 +16,6 @@ from dash.exceptions import PreventUpdate
 
 from skactiveml_annotation.hydra_schema.base import Modality
 from skactiveml_annotation.ui.pages.annotation import actions
-from skactiveml_annotation.util import logging
 
 from . import (
     audio,
@@ -45,7 +45,7 @@ def create_data_display(
     elif modality == Modality.TEXT:
         text_display_setting = data_display_setting.text
         rendered_data = text.display(human_data_path, text_display_setting)
-    else:
+    elif modality == Modality.AUDIO:
         audio_display_setting = data_display_setting.audio
         rendered_data = audio.display(human_data_path, audio_display_setting)
 

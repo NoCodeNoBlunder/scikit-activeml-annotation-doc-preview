@@ -11,7 +11,6 @@ import librosa
 import soundfile
  
 from skactiveml_annotation.core import api
-from skactiveml_annotation.util import logging
 
 from ._model import AudioDataDisplaySetting
 
@@ -33,8 +32,6 @@ def display(audio_data_path, audio_display_setting, format ="WAV"):
     Returns:
     - dmc.Center containing the AudioPlayer
     """
-
-    logging.debug15("Path", audio_data_path)
 
     # Load data from audio file as Pulse Code Modulation (PCM) timeseries 
     # into numpy array.

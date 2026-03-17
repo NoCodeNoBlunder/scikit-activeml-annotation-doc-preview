@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Callable, cast
+import logging
 
 import numpy as np
 from PIL import Image
 
-from skactiveml_annotation.util import logging
 
 try:
     import torch # pyright: ignore[reportMissingImports]

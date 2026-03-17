@@ -10,6 +10,7 @@ from dash.exceptions import PreventUpdate
 
 import dash_mantine_components as dmc
 
+from skactiveml_annotation import util
 from skactiveml_annotation.core import api
 from skactiveml_annotation.shared_ids import (
     SELECTION,
@@ -98,6 +99,8 @@ def register_callbacks(app: Dash):
     ):
         if click is None:
             raise PreventUpdate
+
+        util.logging.setup_logging_background_callback()
 
         selection = Selection.model_validate_json(selection_json)
         activeml_cfg = common.compose_from_state(selection)
