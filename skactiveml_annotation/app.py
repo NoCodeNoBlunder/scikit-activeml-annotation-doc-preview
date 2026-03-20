@@ -27,6 +27,7 @@ from skactiveml_annotation.shared_ids import (
     GO_LAST_PAGE_TRIGGER,
     KEYMAPPING_CFG,
     SELECTION,
+    BATCH_STATE,
 )
 from skactiveml_annotation.ui import clientside_callbacks
 from skactiveml_annotation.ui.components import navbar
@@ -92,6 +93,7 @@ def layout(**kwargs):
                     # Data stored across all pages
                     dcc.Store(BROWSER_DATA),
                     dcc.Store(SELECTION, storage_type='session'),
+                    dcc.Store(id=BATCH_STATE, storage_type="session"),
 
                     # Triggers
                     dcc.Store(CLICK_BTN_TRIGGER),

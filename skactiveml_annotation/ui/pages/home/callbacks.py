@@ -21,8 +21,9 @@ from dash_iconify import DashIconify
 from skactiveml_annotation.core import api
 from skactiveml_annotation.hydra_schema import DatasetConfig
 from skactiveml_annotation.shared_ids import (
-    FOCUS_ELEMENT_TRIGGER,
     SELECTION,
+    BATCH_STATE,
+    FOCUS_ELEMENT_TRIGGER,
 )
 from skactiveml_annotation.ui.components import sampling_input
 from skactiveml_annotation.ui.pages.home.selection import (
@@ -54,6 +55,7 @@ def register(app: Dash):
             selection=Output(ids.SELECTION_PROGRESS, 'data', allow_duplicate=True),
             step=Output(ids.STEPPER, 'active', allow_duplicate=True),
             focus=Output(FOCUS_ELEMENT_TRIGGER, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -154,6 +156,8 @@ def _handle_confirm(
     current_step: int,
     selection: SelectionProgress,
 ):
+    batch = dash.no_update
+
     if current_step >= Selection.size():
         set_props(ids.NEXT_PAGE_TRIGGER, dict(data=True))
         return dict(
@@ -161,13 +165,14 @@ def _handle_confirm(
             selection=dash.no_update,
             step=dash.no_update,
             focus=dash.no_update,
+            batch=batch,
         )
 
     elif current_step == 0:
         prev_dataset_id = selection.get(SelectionStep.DATASET)
         was_dataset_changed = prev_dataset_id is not None and radio_value != prev_dataset_id
         if was_dataset_changed:
-            selection.add(SelectionStep.DATASET, None)
+            batch = None
 
     selection.add(SelectionStep(current_step), radio_value)
     new_step = SelectionStep(current_step + 1)
@@ -177,6 +182,7 @@ def _handle_confirm(
         selection=selection,
         step=new_step,
         focus=ids.UI_CONTAINER,
+        batch=batch,
     )
 
 
@@ -194,6 +200,7 @@ def _handle_back(
         selection=dash.no_update,
         step=next_step,
         focus=ids.UI_CONTAINER,
+        batch=dash.no_update,
     )
 
 
@@ -207,6 +214,7 @@ def _handle_ui_stepper_clicked(
         selection=dash.no_update,
         step=dash.no_update,
         focus=ids.UI_CONTAINER,
+        batch=dash.no_update,
     )
 
 

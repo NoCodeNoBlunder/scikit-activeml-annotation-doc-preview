@@ -6,4 +6,5 @@ CLICK_BTN_TRIGGER = "click-btn-trigger"
 KEYMAPPING_CFG = "keymapping-cfg"
 BROWSER_DATA = "browser-data"
 
+BATCH_STATE = "batch-state"
 SELECTION = "selection"

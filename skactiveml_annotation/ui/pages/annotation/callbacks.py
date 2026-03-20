@@ -22,6 +22,7 @@ from skactiveml_annotation.core import api
 from skactiveml_annotation.shared_ids import (
     FOCUS_ELEMENT_TRIGGER,
     SELECTION,
+    BATCH_STATE,
     BROWSER_DATA,
 )
 from skactiveml_annotation.ui import common
@@ -58,14 +59,14 @@ def register(app: Dash):
     @app.callback(
         Input(ids.ANNOTATION_INIT, 'pathname'),
         State(SELECTION, 'data'),
-        State(ids.BATCH_STATE, 'data'),
+        State(BATCH_STATE, 'data'),
         State(ids.BATCH_SIZE_INPUT, 'value'),
         output=dict(
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
             query_trigger=Output(ids.QUERY_TRIGGER, 'data', allow_duplicate=True),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data'),
             data_presentation_setting_children=Output(ids.DATA_PRESENTATION_SETTINGS_CONTAINER, "children"),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -117,7 +118,7 @@ def register(app: Dash):
         Input(actions.DISCARD.btn_id, 'n_clicks'),
         Input(actions.SKIP.btn_id, 'n_clicks'),
         State(SELECTION, 'data'),
-        State(ids.BATCH_STATE, 'data'),
+        State(BATCH_STATE, 'data'),
         State(ids.TIME_STAMP, 'data'),
         State(ids.LABEL_CHIPS_INPUT, 'value'),
         State(ids.ANNOT_PROGRESS, 'data'),
@@ -125,7 +126,7 @@ def register(app: Dash):
             annot_data=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data", allow_duplicate=True),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -201,7 +202,7 @@ def register(app: Dash):
     @app.callback(
         Input(ids.UI_TRIGGER, 'data'),
         State(SELECTION, 'data'),
-        State(ids.BATCH_STATE, 'data'),
+        State(BATCH_STATE, 'data'),
         State(ids.DATA_DISPLAY_CFG_DATA, 'data'),
         State(BROWSER_DATA, 'data'),
         State(ids.ADDED_CLASS_NAME, 'data'),
@@ -220,7 +221,7 @@ def register(app: Dash):
             disable_all_action_buttons=Output(ALL_ANNOTATION_BTNS, 'loading', allow_duplicate=True),
             focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data"),
             added_class_name=Output(ids.ADDED_CLASS_NAME, 'data'),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True,
     )
@@ -293,7 +294,7 @@ def register(app: Dash):
         State(ids.SUBSAMPLING_INPUT, 'value'),
         output=dict(
             ui_trigger=Output(ids.UI_TRIGGER, 'data', allow_duplicate=True),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True,
         # background=True, # LRU Cache won't work with this
@@ -360,14 +361,14 @@ def register(app: Dash):
     @app.callback(
         Input(ids.SKIP_BATCH_BTN, 'n_clicks'),
         State(SELECTION, 'data'),
-        State(ids.BATCH_STATE, 'data'),
+        State(BATCH_STATE, 'data'),
         State(ids.ANNOT_PROGRESS, 'data'),
         output=dict(
             query_trigger=Output(ids.QUERY_TRIGGER, 'data'),
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data", allow_duplicate=True),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -398,7 +399,7 @@ def register(app: Dash):
 
     @app.callback(
         Input(actions.BACK.btn_id, 'n_clicks'),
-        State(ids.BATCH_STATE, 'data'),
+        State(BATCH_STATE, 'data'),
         State(SELECTION, 'data'),
         State(ids.TIME_STAMP, 'data'),
         State(ids.BATCH_SIZE_INPUT, 'value'),
@@ -408,7 +409,7 @@ def register(app: Dash):
             annot_progress=Output(ids.ANNOT_PROGRESS, 'data', allow_duplicate=True),
             search_text=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             focus_trigger=Output(FOCUS_ELEMENT_TRIGGER, "data", allow_duplicate=True),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
@@ -527,7 +528,7 @@ def register(app: Dash):
 
     @app.callback(
         Input(ids.ADD_CLASS_BTN, 'n_clicks'),
-        State(ids.BATCH_STATE, 'data'),
+        State(BATCH_STATE, 'data'),
         State(SELECTION, 'data'),
         State(ids.LABEL_SEARCH_INPUT, 'value'),
         output=dict(
@@ -535,7 +536,7 @@ def register(app: Dash):
             search_value=Output(ids.LABEL_SEARCH_INPUT, 'value', allow_duplicate=True),
             added_class_name=Output(ids.ADDED_CLASS_NAME, 'data', allow_duplicate=True),
             label_value=Output(ids.LABEL_CHIPS_INPUT, 'value', allow_duplicate=True),
-            batch=Output(ids.BATCH_STATE, 'data', allow_duplicate=True),
+            batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True
     )
