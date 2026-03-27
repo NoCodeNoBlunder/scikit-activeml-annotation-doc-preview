@@ -22,6 +22,7 @@ def create_sampling_inputs():
         dmc.NumberInput(
             label="Subsampling",
             id=ids.SUBSAMPLING_INPUT,
+            value=0.1,
             allowNegative=False,
             debounce=True,
             hideControls=True,
