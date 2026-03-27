@@ -40,7 +40,11 @@ def create_sidebar():
                 dmc.Stack(
                     [
                         dmc.Center(
-                            dmc.Title("Presentation", order=3)
+                            dmc.Title(
+                                "Presentation Settings",
+                                order=4,
+                                style={"textAlign": 'center'},
+                            )
                         ),
                         dmc.Center(
                             dmc.ScrollArea(
@@ -225,16 +229,19 @@ def create_label_chips(
     sort_by: SortBySetting,
     preselect: str | None,
 ):
-    # Check if there is some annotation already for that sample in case the user used back btn.
+    # Check if there is some annotation already for that sample
     was_annotated = annotation is not None
-
-    class_probas = None
-    if batch.class_probas is not None:
-        class_probas = batch.class_probas[batch.progress]
+    prediction = batch.get_class_prediction()
+    class_probas = batch.get_current_class_probas()
 
     if class_probas is not None and show_probas:
         # Sorted classes and class_probas
-        classes_yaml, class_probas = _sort(classes_yaml, batch.classes_sklearn, class_probas, sort_by)
+        classes_yaml, class_probas = _sort(
+            classes_yaml,
+            batch.classes_sklearn,
+            class_probas,
+            sort_by,
+        )
         chips = [_create_chip(label, probability) for label, probability in
                  zip(classes_yaml, class_probas)]
     else:
@@ -242,13 +249,13 @@ def create_label_chips(
 
     # Determine which label to preselect
     if preselect is not None:
-        logging.info(f"preselect after adding label: {preselect}")
+        # If preselect is supplied, just use it.
+        pass
     elif was_annotated:
         # Was allready previously annoated. For intance when going back
         preselect = annotation.label
     elif class_probas is not None:
-        highest_prob_idx = np.argmax(class_probas)
-        preselect = classes_yaml[int(highest_prob_idx)]
+        preselect = prediction
     else:
         preselect = MISSING_LABEL_MARKER
 

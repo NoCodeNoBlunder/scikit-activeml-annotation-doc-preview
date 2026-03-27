@@ -11,6 +11,7 @@ from functools import partial, lru_cache
 from pathlib import Path
 from typing import Callable
 import logging
+from datetime import datetime, timezone
 
 import hydra
 import pydantic
@@ -92,7 +93,7 @@ def get_dataset_omegaconf_from_id(dataset_id: str) -> omegaconf.DictConfig | ome
 
 def is_dataset_embedded(dataset_id: str, embedding_id: str) -> bool:
     key = f"{dataset_id}_{embedding_id}"
-    path = sap.EMBEDDINGS_CACHE_PATH / f"{key}.npz"
+    path = sap.EMBEDDED_PATH / f"{key}.npz"
     return path.exists()
 
 def dataset_path_exits(dataset_path: str) -> bool:
@@ -164,13 +165,13 @@ def request_query(
     # Only fit and query on the samples not marked as discarded
     X_cand, y_cand, cand_to_emb_idx = _filter_discarded_samples(X, y)
 
-    logging.info("Fitting the classifier")
+    logging.info("Fitting the classifier ...")
 
     # The model is wrapped. Rely on scikit-activeml error handling
     # Any errors during fitting will result in fallback predictions using class label counts.
     clf.fit(X_cand, y_cand)
 
-    logging.info("Querying the active ML model ...")
+    logging.info("Computing next query samples ...")
 
     try:
         query_cand_indices = query_func(X=X_cand, y=y_cand)
@@ -183,8 +184,10 @@ def request_query(
     emb_indices = cand_to_emb_idx[query_cand_indices]
     query_embeddings = X[emb_indices]
 
+    class_predictions = clf.predict(query_embeddings).tolist()
+
     try:
-        class_probas = _safe_predict_proba(clf, query_embeddings)
+        class_probas = _safe_predict_proba(clf, query_embeddings).tolist()
     except Exception as e:
         logging.warning(
             f"No class probabilities can be displayed."
@@ -211,19 +214,35 @@ def request_query(
         classes_sklearn=classes_sklearn,
         progress=0,
         annotations=annotations,
+        class_predictions=class_predictions,
     ).init()
 
 
 def _safe_predict_proba(
     clf: SkactivemlClassifier,
     emb_samples: np.ndarray,
-) -> list[list[float]]:
+) -> npt.NDArray[np.floating]:
     """
-    Call predict_proba on a classifier.
+    Attempt to compute predicted class probabilities using a classifier.
 
-    Raises:
-        AttributeError: if predict_proba is not supported.
-        RuntimeError: if predict_proba fails at runtime.
+    Parameters
+    ----------
+    clf : SkactivemlClassifier
+        Classifier that implements ``predict_proba``.
+    emb_samples : np.ndarray
+        Input samples of shape (n_samples, n_features).
+
+    Returns
+    -------
+    numpy.typing.NDArray[np.floating]
+        Class probabilities of shape (n_samples, n_classes).
+
+    Raises
+    ------
+    AttributeError
+        If ``predict_proba`` is not supported by ``clf``.
+    RuntimeError
+        If ``predict_proba`` fails during execution.
     """
     if not hasattr(clf, "predict_proba"):
         raise AttributeError(
@@ -237,10 +256,7 @@ def _safe_predict_proba(
             f"predict_proba failed for {clf.__class__.__name__}"
         ) from e
 
-    # scikit-learn guarantees predict_proba returns an array-like of shape
-    # (n_samples, n_classes). Calling tolist() therefore produces
-    # list[list[float]].
-    return class_probas.tolist()
+    return class_probas
 
 
 def compute_embeddings(
@@ -262,13 +278,13 @@ def compute_embeddings(
     file_paths_str = _normalize_and_validate_paths(file_paths, X)
 
     # Unique key
-    cache_key = f"{dataset_id}_{embedding_cfg.id}"
-    cache_path = sap.EMBEDDINGS_CACHE_PATH / f"{cache_key}.npz"  # Use .npz to store multiple arrays
+    key = f"{dataset_id}_{embedding_cfg.id}"
+    path = sap.EMBEDDED_PATH / f"{key}.npz"  # Use .npz to store multiple arrays
 
-    logging.info(f"Embedding has been computed and saved at {cache_path}")
+    logging.info(f"Embedding has been computed and saved at {path}")
 
     # Store relative file_paths
-    np.savez(cache_path, X=X, file_paths=file_paths_str)
+    np.savez(path, X=X, file_paths=file_paths_str)
 
 
 @lru_cache(maxsize=1)
@@ -276,13 +292,13 @@ def load_embeddings(
     dataset_id: str,
     embedding_id: str,
 ) -> np.ndarray:
-    cache_key = f"{dataset_id}_{embedding_id}"
-    cache_path = sap.EMBEDDINGS_CACHE_PATH / f"{cache_key}.npz"
+    key = f"{dataset_id}_{embedding_id}"
+    path = sap.EMBEDDED_PATH / f"{key}.npz"
 
-    if not cache_path.exists():
-        raise RuntimeError(f"Cannot get embedding at path: {cache_path}! \nEmbedding should exists already")
+    if not path.exists():
+        raise RuntimeError(f"Cannot get embedding at path: {path}! \nEmbedding should exists already")
 
-    with np.load(str(cache_path)) as data:
+    with np.load(str(path)) as data:
         X = data['X']
     return X
 
@@ -314,14 +330,22 @@ def auto_annotate(
     # Auto Annotate all samples that were not annotated and where the 
     # top class probability meets the threshold
     X_missing, _, mapping = _filter_out_annotated(X, y)
-    class_probas = clf.predict_proba(X=X_missing)  # shape (num_samples * num_labels)
+
+    try:
+        class_probas = _safe_predict_proba(clf, X_missing)
+    except Exception:
+        logging.error(
+            f"predict_proba is not supported by this model"
+            f"Auto annotate feature only works with models that support it"
+        )
+        return
 
     top_indices = np.argmax(class_probas, axis=1)
 
     assert clf.classes_ is not None
-    top_classes = clf.classes_[top_indices]
     # Select top proba from each row
     top_probas = class_probas[np.arange(class_probas.shape[0]), top_indices]
+    top_classes = clf.classes_[top_indices]
 
     # Select samples that are above the threshold probability
     is_threshold = (top_probas > threshold)
@@ -343,7 +367,7 @@ def auto_annotate(
         emb_indices=emb_indices,
     )
 
-    # python lists garantee to preserve insertion order since pytyon 3.17
+    # python lists garantee to preserve insertion order since version 3.17
     auto_annots = {
         f_path: AutomatedAnnotation(
             embedding_idx=int(emb_idx),
@@ -356,11 +380,17 @@ def auto_annotate(
 
     manual_annots = _deserialize_annotations(cfg.dataset.id)
 
-    json_store_path = sap.ANNOTATED_PATH / f'{cfg.dataset.id}-automated.json'
+    timestamp = (
+        datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    )
+    json_store_path = (
+        sap.AUTO_ANNOTATED_PATH / f'{cfg.dataset.id}_{timestamp}.json'
+    )
     _serialize_automatic_and_manual_annotations(
         json_store_path,
         manual_annots,
         auto_annots,
+        cfg.model,
     )
 
     num_auto_annotated = len(auto_annots)
@@ -580,13 +610,17 @@ def _serialize_automatic_and_manual_annotations(
     path: Path,
     manual_annotations: dict[str, Annotation],
     auto_annotations: dict[str, AutomatedAnnotation],
+    model_cfg: ModelConfig,
 ):
     payload = {
-        'manual': {
-            f_path: ann.model_dump(mode='json') for f_path, ann in manual_annotations.items()
+        "model": model_cfg.model_dump()["definition"],
+        "manual": {
+            f_path: ann.model_dump(mode="json")
+            for f_path, ann in manual_annotations.items()
         },
-        'automatic': {
-            f_path: ann.model_dump(mode='json') for f_path, ann in auto_annotations.items()
+        "automatic": {
+            f_path: ann.model_dump(mode="json")
+            for f_path, ann in auto_annotations.items()
         },
     }
 
@@ -756,16 +790,16 @@ def get_file_paths(
     embedding_id: str,
     emb_indices: np.ndarray[tuple[int], np.dtype[np.intp]] | list[int] | int,
 ) -> list[str]:
-    cache_key = f'{dataset_id}_{embedding_id}'
-    cache_path = sap.EMBEDDINGS_CACHE_PATH / f"{cache_key}.npz"
+    key = f'{dataset_id}_{embedding_id}'
+    path = sap.EMBEDDED_PATH / f"{key}.npz"
 
     if isinstance(emb_indices, int):
         emb_indices = [emb_indices]
 
-    if not cache_path.exists():
-        raise RuntimeError(f"Cannot get embedding at path: {cache_path}! \nEmbedding should exists already")
+    if not path.exists():
+        raise RuntimeError(f"Cannot get embedding at path: {path}! \nEmbedding should exists already")
 
-    with np.load(str(cache_path), mmap_mode='r') as data:
+    with np.load(str(path), mmap_mode='r') as data:
         file_paths = data['file_paths']
         # tolist() returns np.array if given a list
         return file_paths[emb_indices].tolist()
@@ -791,7 +825,7 @@ def get_global_history_idx(dataset_id: str) -> int:
     Retrieve the history index for a given dataset ID.
     Returns None if the file dose not exist
     """
-    path = sap.HISTORY_IDX / f"{dataset_id}.json"
+    path = sap.HISTORY_IDX_PATH / f"{dataset_id}.json"
 
     if not path.exists():
         raise FileNotFoundError(
@@ -809,7 +843,7 @@ def set_global_history_idx(dataset_id: str, value: int) -> None:
     Store (or update) the history index for a given dataset ID.
     Creates the directory if needed.
     """
-    path = sap.HISTORY_IDX / f"{dataset_id}.json"
+    path = sap.HISTORY_IDX_PATH / f"{dataset_id}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
 
     model = HistoryIdx(idx=value)
@@ -833,7 +867,6 @@ def restore_batch(
     # If there are not enough samples left to restore it will restore as much as it can
     # If it cant restore it will throw an error
     # Assumes annotations are stored in json in the same order they were made.
-    logging.info("\nRestore Batch")
     # History_idx is exclusive and wont be restored
 
     if restore_forward:
@@ -867,7 +900,10 @@ def restore_batch(
     X_cand, y_cand, _ = _filter_discarded_samples(X, y)
 
     clf.fit(X_cand, y_cand)
-    class_probas = clf.predict_proba(X[emb_indices])
+    
+    y_query = X[emb_indices]
+    class_predictions = clf.predict(y_query).tolist()
+    class_probas = clf.predict_proba(y_query)
 
     return Batch(
         emb_indices=emb_indices,
@@ -875,6 +911,7 @@ def restore_batch(
         classes_sklearn=_get_sklearn_classes(clf),
         progress=0 if restore_forward else len(emb_indices) - 1,
         annotations=cast(list[Annotation | None], annotations),
+        class_predictions=class_predictions,
     ).init()
 
 

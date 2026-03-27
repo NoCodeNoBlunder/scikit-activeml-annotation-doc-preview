@@ -34,6 +34,7 @@ def create_auto_annotate_modal():
                     id=ids.AUTO_ANNOTATE_THRESHOLD,
                     min=0,
                     max=1,
+                    clampBehavior='strict',
                     hideControls=True,
                     label="Threshold",
                     placeholder="Enter a threshold",

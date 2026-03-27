@@ -18,13 +18,13 @@ def compose_from_state(selection: Selection) -> ActiveMlConfig:
         ('dataset', selection.dataset_id),
         ('query_strategy', selection.query_id),
         ('embedding', selection.embedding_id),
-        ('+model', selection.model_id)  # add model to default list
+        ('model', selection.model_id)
     )
 
     return compose_config(overrides)
 
 
-def try_deserialize_hotkey_cfg(hotkey_cfg_json) -> HotkeyConfig: 
+def try_deserialize_hotkey_cfg(hotkey_cfg_json) -> HotkeyConfig:
     if hotkey_cfg_json is None:
         logging.error(
             "Hotkey Config should be initialized allready but it is None"

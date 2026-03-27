@@ -140,9 +140,6 @@ def on_key_pressed_handler(
 
     key_mapping = modal_mapping.get(modal, None)
     if key_mapping is None:
-        logging.error(
-            f"Key mapping for modal {modal!r} on page {page!r} does not exist"
-        )
         raise PreventUpdate
 
     button_action_id = key_mapping.get(normalized_hotkey, None)

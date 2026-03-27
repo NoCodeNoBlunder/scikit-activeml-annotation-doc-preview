@@ -52,6 +52,7 @@ class Batch(pydantic.BaseModel):
     classes_sklearn: list[str]
     annotations: list[Annotation | None] = []
     class_probas: list[list[float]] | None = None
+    class_predictions: list[str]
 
     _min_progress: int = pydantic.PrivateAttr()
     _max_progress: int = pydantic.PrivateAttr()
@@ -64,26 +65,25 @@ class Batch(pydantic.BaseModel):
 
         return self
 
-
-    def get_annotation_not_none(self) -> Annotation:
-        annot = self.get_annotation()
-        if annot is None:
-            # TODO:
-            raise ValueError
-        return annot
-
-
     def get_emb_index(self) -> int:
         return self.emb_indices[self.progress]
 
     def get_annotation(self) -> Annotation | None:
         return self.annotations[self.progress]
 
-    def add_annotation(self, annot: Annotation):
-        self.annotations[self.progress] = annot
+    def get_class_prediction(self) -> str:
+        return self.class_predictions[self.progress]
+
+    def get_current_class_probas(self) -> None | list[float]:
+        if self.class_probas is None:
+            return None
+        return self.class_probas[self.progress]
 
     def get_progress_percent(self) -> float:
         return (self.progress / len(self.emb_indices)) * 100
+
+    def add_annotation(self, annot: Annotation):
+        self.annotations[self.progress] = annot
     
     def concat(self, other: Self, progress: int = 0) -> Self:
         class_probas = (
@@ -98,6 +98,7 @@ class Batch(pydantic.BaseModel):
             # TODO: why use only other?
             classes_sklearn=other.classes_sklearn,
             class_probas=class_probas,
+            class_predictions=self.class_predictions + other.class_predictions,
             annotations=self.annotations + other.annotations,
         ).init()
 

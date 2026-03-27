@@ -33,7 +33,7 @@ def display(audio_data_path, audio_display_setting, format ="WAV"):
     - dmc.Center containing the AudioPlayer
     """
 
-    # Load data from audio file as Pulse Code Modulation (PCM) timeseries 
+    # Load data from audio file as Pulse Code Modulation (PCM) timeseries
     # into numpy array.
     # librosa uses soundfile and audiofile as a backup so all their file formats
     # are supported
