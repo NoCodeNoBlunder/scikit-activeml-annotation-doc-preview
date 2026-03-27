@@ -14,7 +14,7 @@ from dash import (
 import dash
 from dash.exceptions import PreventUpdate
 
-from skactiveml_annotation.hydra_schema.base import Modality
+from skactiveml_annotation.hydra_schema import Modality
 from skactiveml_annotation.ui.pages.annotation import actions
 
 from . import (
