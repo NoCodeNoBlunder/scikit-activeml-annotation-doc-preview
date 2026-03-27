@@ -1,0 +1,5 @@
+# Ignore everything except this gitignore to make sure the directory is in VCS
+*
+!.gitignore
+
+# Dont ignore precomputed embedding used for readme Getting started.

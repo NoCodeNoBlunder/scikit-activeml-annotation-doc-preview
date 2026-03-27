@@ -18,6 +18,7 @@ QS_CONFIG_PATH = CONFIG_PATH / 'query_strategy'
 
 # output
 ANNOTATED_PATH = OUTPUT_PATH / 'annotated'
+EMBEDDED_PATH = OUTPUT_PATH / 'embedded'
 HISTORY_IDX = OUTPUT_PATH / 'annotation_history_idx'
 HISTORY_PATH = OUTPUT_PATH / 'annotation_history'
 CACHE_PATH = OUTPUT_PATH / 'cache'
@@ -26,7 +27,6 @@ OVERRIDE_CONFIG_PATH = OUTPUT_PATH / 'override_config'
 
 # output/cache
 BACKGROUND_CALLBACK_CACHE_PATH = CACHE_PATH / 'background_callback_cache'
-EMBEDDINGS_CACHE_PATH = CACHE_PATH / 'embeddings_cache'
 
 # output/override_config
 OVERRIDE_CONFIG_DATASET_PATH = OVERRIDE_CONFIG_PATH / 'dataset'
