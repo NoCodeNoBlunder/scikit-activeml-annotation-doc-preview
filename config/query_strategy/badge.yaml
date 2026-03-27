@@ -1,6 +1,4 @@
-id: "badge"
 display_name: "BADGE"
-model_agnostic: False
 
 definition:
   _target_: skactiveml.pool.Badge

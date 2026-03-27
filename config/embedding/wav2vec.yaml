@@ -5,5 +5,3 @@ modalities:
 
 definition:
   _target_: skactiveml_annotation.embedding.wav2vec.Wav2Vec2EmbeddingAdapter
-  # model_variant: "HTSAT-base"
-  # batch_size: 8

@@ -1,5 +1,4 @@
 display_name: "IMDB Movie Reviews"
 classes: ['positive', 'negative']
 data_path: 'datasets/raw_text/imdb/imdb_texts'
-
 modality: Text

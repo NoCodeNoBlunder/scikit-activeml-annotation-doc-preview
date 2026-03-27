@@ -1,7 +1,4 @@
-id: "probalisticAL"
 display_name: "Probabilistic AL (McPAL)"
-model_agnostic: False
 
 definition:
   _target_: skactiveml.pool.ProbabilisticAL
-

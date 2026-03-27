@@ -6,7 +6,7 @@ definition:
   fit_intercept: True # learn bias term
   class_weight: "balanced"
   tol: 1e-6
-  C: 100.0 
+  C: 100.0
   max_iter: 10000
-  dual: False 
+  dual: False
   intercept_scaling: 1

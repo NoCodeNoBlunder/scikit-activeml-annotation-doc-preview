@@ -15,5 +15,4 @@ classes: [
   'whale', 'willow', 'wolf', 'woman', 'worm'
 ]
 data_path: 'datasets/cifar100/cifar100_images'
-
 modality: Image

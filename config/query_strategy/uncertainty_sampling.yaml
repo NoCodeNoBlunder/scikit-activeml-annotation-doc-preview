@@ -1,8 +1,5 @@
-id: "uncertainty_sampling"
 display_name: "Uncertainty Sampling"
-model_agnostic: False
 
 definition:
   _target_: skactiveml.pool.UncertaintySampling
   method: 'entropy'
-

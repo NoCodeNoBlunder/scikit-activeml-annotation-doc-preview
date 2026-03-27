@@ -1,5 +1,4 @@
 display_name: "STL-10"
 classes: ['airplane', 'bird', 'car', 'cat', 'deer', 'dog', 'horse', 'monkey', 'ship', 'truck']
 data_path: 'datasets/stl10/stl10_images'
-
 modality: Image

@@ -1,11 +1,8 @@
 defaults:
-  - dataset: digits_toy
-  - embedding: dino_adapter
-  - prequery: null
-  - query_strategy: random_sampling
   - _self_
+  - dataset: ???
+  - embedding: ???
+  - query_strategy: ???
+  - model: ???
 
-# Dont add model to default list to not have to override it.
-model: null
-random_seed: 0
-
+random_seed: 42

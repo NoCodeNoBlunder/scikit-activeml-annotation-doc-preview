@@ -1,5 +1,4 @@
 display_name: "Fashion Mnist"
 classes: ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot']
 data_path: 'datasets/fashion-mnist/fashion-mnist_images'
-
 modality: Image

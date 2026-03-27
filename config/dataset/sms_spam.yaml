@@ -1,5 +1,4 @@
 display_name: "SMS Spam"
 classes: ['spam', 'harmless']
 data_path: 'datasets/raw_text/sms_spam/sms_spam_texts'
-
 modality: Text
