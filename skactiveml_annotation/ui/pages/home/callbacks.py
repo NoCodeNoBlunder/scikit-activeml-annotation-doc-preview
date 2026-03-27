@@ -253,18 +253,18 @@ def _create_step_ui(step: SelectionStep, selection: SelectionProgress):
 
 
 def _create_dataset_radio_item(cfg: DatasetConfig, cfg_display: str):
-    dataset_exists = api.dataset_path_exits(cfg.data_path)
+    is_dataset_installed = api.is_dataset_installed(cfg.id)
 
     radio_item = (
         dmc.Radio(
             label=cfg_display,
             value=cfg.id,
-            disabled=not dataset_exists,
+            disabled=not is_dataset_installed,
             size='md',
         )
     )
 
-    if dataset_exists:
+    if is_dataset_installed:
         return radio_item
 
     return dmc.Tooltip(
@@ -300,7 +300,7 @@ def _create_dataset_selection(preselect: str | None):
 def _create_embedding_radio_group(selection: SelectionProgress):
     dataset_cfg_id = selection.get_not_none(SelectionStep.DATASET)
 
-    modality = api.get_dataset_cfg_from_id(dataset_cfg_id).modality
+    modality = api.get_dataset_config_from_id(dataset_cfg_id).modality
 
     # Only show embedding methods applicable to the modality of the dataset
     options = [

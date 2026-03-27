@@ -1,7 +1,7 @@
 import re
 from io import BytesIO
 import base64
-from typing import TypeVar, TypeGuard, cast
+from typing import cast
 from collections import OrderedDict
 from collections.abc import Sequence
 from itertools import islice
@@ -54,11 +54,6 @@ from skactiveml_annotation.util.utils import SortOrder
 
 QueryFunc = Callable[..., npt.NDArray[np.intp]]
 
-T = TypeVar("T")
-
-def not_none_type_narrowing(x: T | None) -> TypeGuard[T]:
-    return x is not None
-
 def get_dataset_config_options() -> list[DatasetConfig]:
     return deserialize.parse_yaml_config_dir(sap.DATA_CONFIG_PATH, DatasetConfig)
 
@@ -71,33 +66,23 @@ def get_model_config_options() -> list[ModelConfig]:
 def get_embedding_config_options() -> list[EmbeddingConfig]:
     return deserialize.parse_yaml_config_dir(sap.EMBEDDING_CONFIG_PATH, EmbeddingConfig)
 
-def get_query_cfg_from_id(query_id: str) -> QueryStrategyConfig:
-    path = sap.QS_CONFIG_PATH / f'{query_id}.yaml'
-    return deserialize.parse_yaml_file(path, QueryStrategyConfig)
-
-def get_dataset_cfg_from_id(id: str) -> DatasetConfig:
-    path = sap.DATA_CONFIG_PATH / f'{id}.yaml'
+def get_dataset_config_from_id(dataset_id: str) -> DatasetConfig:
+    path = sap.DATA_CONFIG_PATH / f'{dataset_id}.yaml'
     return deserialize.parse_yaml_file(path, DatasetConfig)
 
-def get_dataset_cfg_from_path(path: Path) -> DatasetConfig:
-    return deserialize.parse_yaml_file(path, DatasetConfig)
-
-def get_dataset_omegaconf_from_id(dataset_id: str) -> omegaconf.DictConfig | omegaconf.ListConfig:
+def _get_dataset_omegaconf_from_id(dataset_id: str) -> omegaconf.DictConfig | omegaconf.ListConfig:
     path = sap.DATA_CONFIG_PATH / f"{dataset_id}.yaml"
-
     if not path.exists():
         raise FileNotFoundError(f"Dataset config not found: {path}")
-
     return OmegaConf.load(path)
-
 
 def is_dataset_embedded(dataset_id: str, embedding_id: str) -> bool:
     key = f"{dataset_id}_{embedding_id}"
     path = sap.EMBEDDED_PATH / f"{key}.npz"
     return path.exists()
 
-def dataset_path_exits(dataset_path: str) -> bool:
-    path = sap.ROOT_PATH / dataset_path
+def is_dataset_installed(dataset_id: str) -> bool:
+    path = sap.DATASETS_PATH / f"{dataset_id}"
     return path.exists()
 
 
@@ -456,7 +441,7 @@ def _add_class_and_save_yaml_override(
         case SortOrder.UNSORTED:
             pass
 
-    omega_cfg = get_dataset_omegaconf_from_id(dataset_id)
+    omega_cfg = _get_dataset_omegaconf_from_id(dataset_id)
     omega_cfg.classes = updated_classes
 
     # Derive override path

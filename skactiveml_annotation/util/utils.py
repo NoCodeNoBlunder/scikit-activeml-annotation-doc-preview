@@ -1,12 +1,17 @@
 from collections.abc import Sequence
 from enum import Enum, auto
-from typing import Callable
+from typing import Callable, TypeGuard, TypeVar
 
 class SortOrder(Enum):
     ASC = auto()
     DESC = auto()
     UNSORTED = auto()
 
+
+T = TypeVar("T")
+
+def not_none_type_narrowing(x: T | None) -> TypeGuard[T]:
+    return x is not None
 
 def is_all_numeric(seq: Sequence[str]) -> bool:
     return all(_is_number_like(s) for s in seq)

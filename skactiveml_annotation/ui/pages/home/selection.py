@@ -1,10 +1,10 @@
 
-
 from enum import IntEnum, auto
 
 import pydantic
 
-from skactiveml_annotation.core import api
+from skactiveml_annotation.util import utils
+
 
 class SelectionStep(IntEnum):
     @staticmethod
@@ -37,7 +37,7 @@ class SelectionProgress(pydantic.BaseModel):
         self.selections[step.value] = val
 
     def convert(self) -> Selection:
-        selections = list(filter(api.not_none_type_narrowing, self.selections))
+        selections = list(filter(utils.not_none_type_narrowing, self.selections))
 
         if len(selections) < Selection.size():
             missing = [
