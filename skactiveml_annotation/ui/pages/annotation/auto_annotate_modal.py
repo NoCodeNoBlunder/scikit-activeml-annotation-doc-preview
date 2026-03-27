@@ -86,6 +86,9 @@ def register_callbacks(app: Dash):
         Input(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'n_clicks'),
         State(SELECTION, 'data'),
         State(ids.AUTO_ANNOTATE_THRESHOLD, 'value'),
+        running=[
+            (Output(ids.AUTO_ANNOTATE_CONFIRM_BTN, 'loading'), True, False),
+        ],
         output=dict(
             auto_annot_modal_open=Output(AUTO_ANNOTATE_MODAL, 'opened', allow_duplicate=True),
         ),
