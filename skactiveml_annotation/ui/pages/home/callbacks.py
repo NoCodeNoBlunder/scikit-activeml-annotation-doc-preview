@@ -253,7 +253,7 @@ def _create_step_ui(step: SelectionStep, selection: SelectionProgress):
 
 
 def _create_dataset_radio_item(cfg: DatasetConfig, cfg_display: str):
-    is_dataset_installed = api.is_dataset_installed(cfg.id)
+    is_dataset_installed = api.is_dataset_installed(cfg)
 
     radio_item = (
         dmc.Radio(

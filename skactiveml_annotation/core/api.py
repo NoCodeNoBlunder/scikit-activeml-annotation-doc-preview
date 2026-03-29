@@ -81,8 +81,10 @@ def is_dataset_embedded(dataset_id: str, embedding_id: str) -> bool:
     path = sap.EMBEDDED_PATH / f"{key}.npz"
     return path.exists()
 
-def is_dataset_installed(dataset_id: str) -> bool:
-    path = sap.DATASETS_PATH / f"{dataset_id}"
+def is_dataset_installed(dataset_cfg: DatasetConfig) -> bool:
+    path = dataset_cfg.data_path
+    if not path.is_absolute():
+        path = sap.ROOT_PATH / path
     return path.exists()
 
 
@@ -252,7 +254,7 @@ def compute_embeddings(
     dataset_cfg = activeml_cfg.dataset
     dataset_id = dataset_cfg.id
 
-    data_path = Path(dataset_cfg.data_path)
+    data_path = dataset_cfg.data_path
     if not data_path.is_absolute():
         data_path = sap.ROOT_PATH / data_path
 

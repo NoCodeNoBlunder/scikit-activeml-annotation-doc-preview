@@ -70,9 +70,11 @@ class ImageDataset(torch.utils.data.Dataset):
 
 
 class TorchVisionAdapter(EmbeddingBaseAdapter):
-    def __init__(self,
-                 batch_size: int = 16,
-                 model_variant: str = "dinov2_vitb14"):
+    def __init__(
+            self,
+            batch_size: int = 16,
+            model_variant: str = "dinov2_vitb14"
+        ):
         self.model_variant = model_variant
         self.batch_size = batch_size
         self.device = "cuda" if torch.cuda.is_available() else "cpu"

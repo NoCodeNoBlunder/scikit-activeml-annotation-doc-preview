@@ -126,16 +126,16 @@ def _create_log_mel_power_spectogramm_fig(
     fmax=8000,
 ):
     fmin = fmin
-    # fmax should never exeed Nyhilist limit
-    fmax = min(sample_rate / 2, fmax) 
+    # fmax should never exeed Nyquist limit
+    fmax = min(sample_rate / 2, fmax)
 
     # Frequency axis
     S = librosa.feature.melspectrogram(
-        y=time_series, 
-        sr=sample_rate, 
-        n_fft=n_fft, 
-        hop_length=hop_length, 
-        n_mels=n_mels, 
+        y=time_series,
+        sr=sample_rate,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
         center=True,
         fmin=fmin,
         fmax=fmax

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 from enum import Enum
+from pathlib import Path
 from typing import (
     Any,
     TypeVar,
@@ -42,16 +43,16 @@ class DatasetConfig(pydantic.BaseModel):
         Human-readable name shown in the UI, e.g. ``"CIFAR-10"``.
     classes : list[str]
         Ordered list of class labels the annotator can assign to a sample.
-    data_path : str
+    data_path : Path
         Path to the directory containing the raw sample files,
-        relative to the project root.
+        absolute or relative to the project root.
     modality : Modality
         Modality of the dataset.
     """
     id: str
     display_name: str
     classes: list[str]
-    data_path: str
+    data_path: Path
     modality: Modality
 
 

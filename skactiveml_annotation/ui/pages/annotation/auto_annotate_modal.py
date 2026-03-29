@@ -36,7 +36,7 @@ def create_auto_annotate_modal():
                     max=1,
                     clampBehavior='strict',
                     hideControls=True,
-                    label="Threshold",
+                    label="Confidence Threshold",
                     placeholder="Enter a threshold",
                     value=0.99,
                     allowNegative=False,
