@@ -108,7 +108,7 @@ def register(app: Dash):
 
         # The background Callback runs in a different process.
         # Logging needs to be initialized in this new context
-        util.logging.setup_logging_background_callback()
+        util.logging.configure_logging_background_callback()
 
         selection = Selection.model_validate_json(selection_json)
         _compute_embedding(selection, progress_func)

@@ -104,7 +104,7 @@ def register_callbacks(app: Dash):
         if click is None:
             raise PreventUpdate
 
-        util.logging.setup_logging_background_callback()
+        util.logging.configure_logging_background_callback()
 
         selection = Selection.model_validate_json(selection_json)
         activeml_cfg = common.compose_from_state(selection)
