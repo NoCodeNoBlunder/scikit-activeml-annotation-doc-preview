@@ -48,33 +48,38 @@ def display(
     fig = go.Figure(
         data=go.Image(
             source=_pil_image_to_inline_data_url(image, format="PNG"),
-            # z=image,
+            hoverinfo="skip",
         ),
         layout=go.Layout(
             width=max(10, layout_widht),
             height=max(10, layout_height),
-            margin=dict(l=ml, r=mr, t=mt, b=mb, pad=0)
+            margin=dict(l=ml, r=mr, t=mt, b=mb, pad=0),
+            yaxis=dict(
+                showticklabels=False,
+            ),
+            xaxis=dict(
+                showticklabels=False,
+            ),
         )
     )
-
-    fig.update_xaxes(showticklabels=False)
-    fig.update_yaxes(showticklabels=False)
-    fig.update_layout(autosize=False)
 
     return (
         dcc.Graph(
             figure=fig,
-            responsive=False,
-            style={
-                # 'border':'blue solid 2px',
-                # imageRendering:'pixelated'
-            },
+            responsive=True,
+            # style={
+            #     'border':'blue solid 2px',
+            # },
             config={
-                # autosizeable=False,
                 'scrollZoom':True,
                 'doubleClick':'reset',
                 'displaylogo':False,
-                'modeBarButtonsToRemove':['toImage'],
+                'modeBarButtonsToRemove': [
+                    'toImage',
+                    'autoscale2d',
+                    'zoomin2d',
+                    'zoomout2d',
+                ],
             },
         ),
         layout_widht,
