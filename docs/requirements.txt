@@ -1,0 +1,6 @@
+# --- Documentation Tools ---
+Sphinx>=9.1.0
+numpydoc>=1.10.0
+autodoc_pydantic>=2.2
+sphinx_design>=0.7.0
+pydata-sphinx-theme>=0.16.1

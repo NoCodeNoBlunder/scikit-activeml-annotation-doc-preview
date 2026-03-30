@@ -1,5 +1,6 @@
 .venv
 examples
+build
 outputs
 __pycache__/
 .idea

@@ -1,6 +1,6 @@
 import argparse
 
-import load_torchvision_images
+from . import load_torchvision_images
 
 def _get_mapping() -> dict:
     # TODO:

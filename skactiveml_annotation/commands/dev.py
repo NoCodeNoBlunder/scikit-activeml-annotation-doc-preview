@@ -1,4 +1,3 @@
-import sys
 import argparse
 import subprocess
 
@@ -43,22 +42,23 @@ def execute_lint(_: argparse.Namespace, _2: list[str]):
     # TODO:
     raise NotImplementedError
 
-
 def execute_doc_gen(_: argparse.Namespace, extra_args: list[str]):
-    if sys.platform == "win32":
-        cmd = [str(sap.DOCS_PATH / "make.bat"), "html"]
-    else:
-        cmd = ["make", "html"]
-
+    cmd = [
+        "sphinx-build",
+        "-b", "html",
+        str(sap.DOCS_PATH / "source"),
+        str(sap.DOCS_PATH / "build" / "html"),
+    ]
     cmd.extend(extra_args)
-    subprocess.run(cmd, check=True, cwd=sap.DOCS_PATH)
+    subprocess.run(cmd, check=True)
 
 
 def execute_doc_clean(_: argparse.Namespace, extra_args: list[str]):
-    if sys.platform == "win32":
-        cmd = [str(sap.DOCS_PATH / "make.bat"), "clean"]
-    else:
-        cmd = ["make", "clean"]
-
+    cmd = [
+        "sphinx-build",
+        "-M", "clean",
+        str(sap.DOCS_PATH / "source"),
+        str(sap.DOCS_PATH / "build"),
+    ]
     cmd.extend(extra_args)
-    subprocess.run(cmd, check=True, cwd=sap.DOCS_PATH)
+    subprocess.run(cmd, check=True)
