@@ -1,8 +1,6 @@
 display_name: "all-MiniLM-L6-v2"
-
 modalities:
   - Text
-
 definition:
   _target_: skactiveml_annotation.embedding.sentence_transformer.SentenceTransformerAdapter
   model_variant: "all-MiniLM-L6-v2"

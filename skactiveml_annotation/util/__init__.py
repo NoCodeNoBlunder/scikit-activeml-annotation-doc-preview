@@ -3,7 +3,7 @@ from . import logging
 from . import utils
 
 __all__ = [
-    "deserialize", 
-    "logging", 
+    "deserialize",
+    "logging",
     "utils"
 ]

@@ -1,9 +1,7 @@
 # https://github.com/facebookresearch/dinov2
 display_name: "DINOv2 ViT-B/14"
-
 modalities:
   - Image
-
 definition:
   _target_: skactiveml_annotation.embedding.dino.TorchVisionAdapter
   model_variant: "dinov2_vitb14"

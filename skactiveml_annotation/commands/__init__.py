@@ -2,6 +2,7 @@ from . import run
 from . import embed
 from . import install_dataset
 from . import dev
+from . import list_available
 
 
 __all__ = [
@@ -9,4 +10,5 @@ __all__ = [
     "embed",
     "install_dataset",
     "dev",
+    "list_available",
 ]

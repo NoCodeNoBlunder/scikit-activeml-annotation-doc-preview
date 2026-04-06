@@ -25,7 +25,6 @@ def parse_yaml_file(file_path: Path | str, clazz: type[T]) -> T:
 
     if not file_path.is_file() or file_path.suffix != ".yaml":
         msg = f"Cannot find yaml file at path: {file_path}"
-        logging.error(msg)
         raise FileNotFoundError(msg)
 
     try:
@@ -37,24 +36,15 @@ def parse_yaml_file(file_path: Path | str, clazz: type[T]) -> T:
         OmegaConf.update(cfg, "id", file_id, merge=True)
         cfg_raw = OmegaConf.to_container(cfg, resolve=True)
     except Exception as e:
-        logging.error(
-            "\n".join([
-                f"Failed to parse yaml file: {file_path}",
-                f"Error: {e}",
-            ])
-        )
-        raise
+        raise RuntimeError(f"Failed to parse yaml file: {file_path}") from e
 
     try:
         return clazz.model_validate(cfg_raw)
     except pydantic.ValidationError as e:
-        logging.error(
-            "\n".join([
-                f"Pydantic validation for {clazz.__name__} failed for config at {file_path}.",
-                f"Error: {e}",
-            ])
-        )
-        raise
+        raise TypeError(
+            f"Failed to parse '{file_path}' into {clazz.__name__}. "
+            f"The config structure does not match the expected schema."
+        ) from e
 
 
 def overrides_to_list(overrides: tuple[tuple[str, str], ...]) -> list[str]:
@@ -64,12 +54,18 @@ def overrides_to_list(overrides: tuple[tuple[str, str], ...]) -> list[str]:
 
 def set_ids_from_overrides(cfg: omegaconf.DictConfig, overrides: tuple[tuple[str, str], ...]):
     """
-    Uses the provided override values to set the add 'id' field for each config category.
-    To enable checking which option (config yaml file) was selected
+    Set the ``id`` field for each config category based on the provided overrides.
 
-    Expected format of each override tuple:
-      (key, override_value)
-    The '+' prefix is stripped if present.
+    Enables tracking which option (config yaml file) was selected by injecting
+    an ``id`` field into the corresponding config node.
+
+    Parameters
+    ----------
+    cfg : omegaconf.DictConfig
+        The configuration object to update.
+    overrides : tuple of tuple of str
+        Each entry is a ``(key, override_value)`` pair. The ``+`` prefix is
+        stripped from ``key`` if present.
     """
     for key, override_value in overrides:
         key = key.lstrip('+')

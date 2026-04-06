@@ -13,8 +13,9 @@ def parse_args() -> tuple[Namespace, list[str]]:
     subparsers = parser.add_subparsers(dest="command")
 
     commands.run.register(subparsers)
-    commands.embed.register(subparsers)
+    commands.list_available.register(subparsers)
     commands.install_dataset.register(subparsers)
+    commands.embed.register(subparsers)
     commands.dev.register(subparsers)
 
     args, remaining = parser.parse_known_args()

@@ -1,8 +1,6 @@
 display_name: "Basic Flatten Image"
-
 modalities:
   - Image
-
 definition:
   _target_: skactiveml_annotation.embedding.basic_flatten.SimpleFlattenAdapter
 
