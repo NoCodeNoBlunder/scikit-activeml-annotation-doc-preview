@@ -49,7 +49,7 @@ from skactiveml_annotation.hydra_schema import (
     DatasetConfig,
 )
 
-from skactiveml_annotation.core.shared_types import DashProgressFunc
+
 from skactiveml_annotation.util.utils import SortOrder
 
 QueryFunc = Callable[..., npt.NDArray[np.intp]]
@@ -70,6 +70,10 @@ def get_dataset_config_from_id(dataset_id: str) -> DatasetConfig:
     path = sap.DATA_CONFIG_PATH / f'{dataset_id}.yaml'
     return deserialize.parse_yaml_file(path, DatasetConfig)
 
+def get_embedding_config_from_id(embedding_id: str) -> EmbeddingConfig:
+    path = sap.EMBEDDING_CONFIG_PATH / f'{embedding_id}.yaml'
+    return deserialize.parse_yaml_file(path, EmbeddingConfig)
+
 def _get_dataset_omegaconf_from_id(dataset_id: str) -> omegaconf.DictConfig | omegaconf.ListConfig:
     path = sap.DATA_CONFIG_PATH / f"{dataset_id}.yaml"
     if not path.exists():
@@ -87,6 +91,12 @@ def is_dataset_installed(dataset_cfg: DatasetConfig) -> bool:
         path = sap.ROOT_PATH / path
     return path.exists()
 
+def get_embedding_options_for_dataset(dataset_cfg: DatasetConfig) -> list[EmbeddingConfig]:
+    modality = dataset_cfg.modality
+    return [
+        emb for emb in get_embedding_config_options()
+        if modality in emb.modalities
+    ]
 
 @lru_cache(maxsize=1)
 def compose_config(overrides: tuple[tuple[str, str], ...]) -> ActiveMlConfig:
