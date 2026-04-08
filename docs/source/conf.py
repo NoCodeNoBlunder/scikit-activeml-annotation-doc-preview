@@ -48,13 +48,6 @@ extensions = [
     # 3rd party extensions
     "numpydoc",
     "sphinx_design",
-    # TODO:
-    # "sphinxcontrib.autodoc_pydantic",
-    # "sphinx_gallery.gen_gallery",
-    # "nbsphinx",
-    # "sphinx_copybutton",
-    # "sphinx_sitemap",
-    # "copy_sphinx_gallery_notebooks",
 ]
 
 
@@ -96,7 +89,6 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path .
-# TODO:
 exclude_patterns = [ ]
 
 # The name of the Pygments (syntax highlighting) style to use.
@@ -118,7 +110,7 @@ html_theme_options = {
     "github_url": "https://github.com/scikit-activeml/scikit-activeml-annotation",
     "navbar_start": ["navbar-logo"],
     "logo": {
-        "text": "scikit activeml annotation",
+        "text": "scikit-activeml-annotation",
     }
 }
 
@@ -181,8 +173,11 @@ autodoc_default_options = {
     "exclude-members": "model_dump,model_dump_json,model_validate,model_validate_json,model_fields,model_config,model_post_init,model_rebuild,model_copy,model_construct,model_json_schema,model_parametrized_name,model_validate_strings"
 }
 
+autodoc_member_order = "bysource"
+
 autoclass_content = "class"
 
 # TODO:
+html_baseurl = 'https://nocodenoblunder.github.io/scikit-activeml-annotation-doc-preview/'
 # html_baseurl = f'https://scikit-activeml.github.io/{version}/'
 # sitemap_url_scheme = "{link}"
