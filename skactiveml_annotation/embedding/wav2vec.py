@@ -1,9 +1,10 @@
 import logging
 from pathlib import Path
-from typing import cast
+from typing import override
 
 try:
     import torch  # pyright: ignore[reportMissingImports]
+    from torch.utils.data import DataLoader # pyright: ignore[reportMissingImports]
     from transformers import Wav2Vec2Processor, Wav2Vec2Model  # pyright: ignore[reportMissingImports]
     from transformers import TensorType
 except ImportError as e:
@@ -11,107 +12,140 @@ except ImportError as e:
     raise
 
 import numpy as np
+import numpy.typing as npt
+
 import librosa
 
-from skactiveml_annotation.core.shared_types import DashProgressFunc
 from .base import (
+    ProgressFunc,
     relative_to_root,
     EmbeddingBaseAdapter,
 )
+
+
+class AudioDataset(torch.utils.data.Dataset):
+    def __init__(self, data_path: Path, sample_rate: int):
+        self.sample_rate = sample_rate
+        self.file_paths = sorted(
+            path for path in data_path.iterdir()
+            if path.is_file() and path.suffix.lower() == ".wav"
+        )
+
+    def __len__(self) -> int:
+        return len(self.file_paths)
+
+    def __getitem__(self, idx: int) -> tuple[np.ndarray, str]:
+        path = self.file_paths[idx]
+        try:
+            # Resample to the sampling rate required by the model
+            waveform, _ = librosa.load(path, sr=self.sample_rate, mono=True)
+        except Exception as e:
+            logging.error(f"Unexpected error loading audio {path}: {e}")
+            raise
+        return waveform, relative_to_root(path)
+
+def _collate_audio(
+    batch: list[tuple[np.ndarray, str]]
+) -> tuple[list[np.ndarray], list[str]]:
+    waveforms, paths = zip(*batch)
+    return list(waveforms), list(paths)
+
 
 class Wav2Vec2EmbeddingAdapter(EmbeddingBaseAdapter):
     def __init__(
         self,
         model_name: str = "facebook/wav2vec2-base",
         batch_size: int = 8,
-        sample_rate: int = 16000 # Default for Speech recognition
     ):
-        """
-        Initialize the Wav2Vec2 embedding adapter.
-
-        Args:
-            model_name (str): Hugging Face model name
-            device (str): 'cuda' or 'cpu'. Defaults to CUDA if available.
-            batch_size (int): Number of audio samples per batch
-        """
+        self.sample_rate = 16000 # facebook/wav2vec2 was trained on 16kHz
         self.batch_size = batch_size
-        self.sample_rate = sample_rate
-
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.processor = Wav2Vec2Processor.from_pretrained(model_name)
-
-        self.model = cast(torch.nn.Module, Wav2Vec2Model.from_pretrained(model_name))
-        self.model.to(self.device)
+        self.model = Wav2Vec2Model.from_pretrained(model_name)
+        self.model.to(self.device)  # pyright: ignore[reportArgumentType]
         self.model.eval()
 
-
+    @override
     def compute_embeddings(
         self,
         data_path: Path,
-        progress_func: DashProgressFunc,
-    ) -> tuple[np.ndarray, list[Path]]:
-        file_paths = sorted([p for p in data_path.iterdir() if p.suffix.lower() == ".wav"])
-        embeddings = []
+        progress_func: ProgressFunc,
+    ) -> tuple[npt.NDArray, list[str]]:
+        logging.info(f"Compute Wav2Vec2 embedding using device: {self.device} ...")
 
-        # Load all audio first
-        logging.info("load all audio waveforms ...")
+        dataset = AudioDataset(data_path, self.sample_rate)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            num_workers=4,
+            # Use custom collate func to prevent PyTorch from stacking
+            # variable lenght waveforms
+            collate_fn=_collate_audio,
+        )
 
-        audio_list = []
-        sampling_rate = self.sample_rate
-        for path in file_paths:
-            # To preserve sampling rate None can be passed but that assumes all
-            # sampels have the same sampling rate
-            waveform, _ = librosa.load(path, sr=sampling_rate, mono=True)
-            audio_list.append(waveform)
+        embeddings: torch.Tensor | None = None
+        num_samples = len(dataset)
+        file_paths = [""] * num_samples
+        progress = 0
 
+        with torch.inference_mode():
+            for batch_waveforms, batch_paths in dataloader:
+                # Preprocessing
+                inputs = self.processor(
+                    audio=batch_waveforms,
+                    common_kwargs={
+                        "return_tensors": TensorType.PYTORCH,
+                    },
+                    audio_kwargs={
+                        # Pad variable length audio so it can be batched
+                        "padding": True,
+                        # Make the processor return attention mask to allow
+                        # to allow the model to ignore shorter samples.
+                        "return_attention_mask": True,
+                        "sampling_rate": self.sample_rate,
+                    },
+                ).to(self.device)
 
-        logging.info("start preprocessing and embedding")
-
-        # Progress tracking
-        update_step = 100
-        total_files = len(audio_list)
-        processed_count = 0
-        next_report_value = update_step
-
-        for i in range(0, len(audio_list), self.batch_size):
-            batch_waveforms = audio_list[i:i+self.batch_size]
-
-            # Prepare batch inputs with padding
-            # Adding padding for variable lenght samples and convert to tensor
-            inputs = self.processor(
-                audio=batch_waveforms,
-                common_kwargs={
-                    "return_tensors": TensorType.PYTORCH,
-                },
-                audio_kwargs={
-                    "sampling_rate": sampling_rate,
-                    "padding": True,
-                },
-            )
-
-            # PyTorch models require that all inputs are on the same device as the model.
-            # If your model is on the GPU, but your input tensors are on the CPU, PyTorch will throw an error.
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-
-            with torch.no_grad(): # for inference disable gradient tracking. It is not needed
+                # Inference
                 outputs = self.model(**inputs)
-                last_hidden_states = outputs.last_hidden_state  # [batch, seq_len, hidden_size]
 
-                # Pool over time dimension for each sample
-                batch_embeddings = last_hidden_states.mean(dim=1).cpu().numpy()
-                embeddings.append(batch_embeddings)
+                # [batch_size, time_steps, hidden_size]
+                last_hidden = outputs.last_hidden_state
 
-            # update progress count
-            processed_count += len(batch_embeddings)
+                # [batch_size, num_samples]
+                input_mask = inputs["attention_mask"]
 
-            if processed_count >= next_report_value:
-                percent = (processed_count / total_files) * 100
-                logging.info(f"{processed_count}/{total_files} samples embedded ({percent:.2f}%)")
-                progress_func(percent)
-                next_report_value += update_step
+                # [batch_size, time_steps]
+                feature_mask = self.model._get_feature_vector_attention_mask(
+                    last_hidden.shape[1],
+                    input_mask
+                )
 
-        embeddings = np.vstack(embeddings)
-        logging.info("Final embedding matrix shape:", embeddings.shape)
-        relative_paths = [relative_to_root(p) for p in file_paths]
+                # [batch_size, time_steps, 1]
+                feature_mask = feature_mask.unsqueeze(-1)
 
-        return embeddings, relative_paths
+                masked_hidden = last_hidden * feature_mask
+
+                # [batch_size, hidden_size]
+                #  masked mean pooling
+                batch_embeddings = masked_hidden.sum(dim=1) / feature_mask.sum(dim=1).clamp(min=1)
+
+                if embeddings is None:
+                    # Preallocate memory
+                    embeddings = torch.empty(
+                        (num_samples, batch_embeddings.shape[1]),
+                        dtype=batch_embeddings.dtype,
+                    )
+
+                next_progress = progress + batch_embeddings.shape[0]
+
+                embeddings[progress:next_progress] = batch_embeddings
+                file_paths[progress:next_progress] = list(batch_paths)
+
+                progress = next_progress
+                progress_func(progress, num_samples)
+
+        if embeddings is None:
+            raise RuntimeError("No embeddings were computed. Dataset was empty.")
+
+        return embeddings.cpu().numpy(), file_paths

@@ -1,23 +1,26 @@
 import logging
+from typing import override
 
 from PIL import Image
 from pathlib import Path
 
 import numpy as np
 
-from skactiveml_annotation.core.shared_types import DashProgressFunc
-
 from .base import (
     EmbeddingBaseAdapter,
-    relative_to_root
+    ProgressFunc,
+    relative_to_root,
+    ProgressFunc,
 )
 
 
 class SimpleFlattenAdapter(EmbeddingBaseAdapter):
-    def __init__(self):
-        pass
-
-    def compute_embeddings(self, data_path: Path, progress_func: DashProgressFunc) -> tuple[np.ndarray, list[Path]]:
+    @override
+    def compute_embeddings(
+        self,
+        data_path: Path,
+        progress_func: ProgressFunc,
+    ) -> tuple[np.ndarray, list[str]]:
         """
         Load images one by one from the directory, flatten them,
         and return the stacked feature matrix.
@@ -44,7 +47,7 @@ class SimpleFlattenAdapter(EmbeddingBaseAdapter):
                 feature_list.append(feature)
                 file_path_list.append(relative_to_root(file))
 
-                progress_func((progress / n_files) * 100)
+                progress_func(progress, n_files)
 
             except Exception as e:
                 logging.error(f"Error processing {file}: {e}")

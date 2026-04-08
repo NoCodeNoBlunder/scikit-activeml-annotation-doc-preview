@@ -1,40 +1,83 @@
 from pathlib import Path
-from abc import ABC, abstractmethod
+from typing import Callable
+from abc import (
+    ABC,
+    abstractmethod,
+)
 
-import numpy as np
+import numpy.typing as npt
 
 import skactiveml_annotation.paths as sap
-from skactiveml_annotation.core.shared_types import DashProgressFunc
 
+ProgressFunc = Callable[[int, int], None]
 
-def relative_to_root(path: Path) -> Path:
+def relative_to_root(path: str | Path) -> str:
     """
-    Convert an absolute path to a path that is relative to the project root.
+    Convert a path to be relative to the project root.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to convert.
+
+    Returns
+    -------
+    str
+        Path relative to the project root.
     """
-    return path.relative_to(sap.ROOT_PATH)
+    if isinstance(path, str):
+        path = Path(path)
+    return str(path.relative_to(sap.ROOT_PATH))
 
 
 class EmbeddingBaseAdapter(ABC):
+    """Interface for implementing embedding methods.
+
+    Implementors define how raw dataset samples are transformed into
+    numerical embeddings for use in machine learning.
+    """
+
     @abstractmethod
-    def compute_embeddings(self, data_path: Path, progress_func: DashProgressFunc) -> tuple[np.ndarray, list[Path]]:
+    def compute_embeddings(
+        self,
+        data_path: Path,
+        progress_func: ProgressFunc,
+    ) -> tuple[npt.NDArray, list[str]]:
+        """Compute embeddings for all samples in the given dataset directory.
+
+        Parameters
+        ----------
+        data_path : Path
+            Absolute path to the dataset directory containing all samples.
+
+        progress_func : Callable[[int, int], None]
+            Callback function to report progress during embedding computation.
+
+            Signature:
+                progress_func(processed: int, total: int) -> None
+
+            Where:
+                processed : int
+                    Number of samples that have already been processed.
+                total : int
+                    Total number of samples in the dataset.
+
+        Returns
+        -------
+        embeddings : numpy.ndarray
+            Array of computed embeddings with shape (n_samples, n_features).
+
+        file_paths : list of str
+            List of file paths corresponding to each embedding.
+
+            Paths should be **relative to the project root** to ensure
+            portability. Implementors can use :func:`relative_to_root` to
+            construct these paths.
+
+        Notes
+        -----
+        The ordering of ``embeddings`` and ``file_paths`` must be consistent.
+        That is, for all ``i``, ``file_paths[i]`` corresponds to
+        ``embeddings[i]``.
         """
-        Compute and return the feature matrix and corresponding file paths for the given directory of data.
-
-        This function loads the data from the specified directory, preprocesses it,
-        and potentially creates embeddings such that the resulting feature matrix X
-        has shape (num_samples, num_features). The following invariant must hold:
-
-        - X[i] corresponds to file_paths[i] for all i.
-
-        Args:
-            data_path (str): The absolute path to the directory containing the data
-                             to be processed and embedded.
-
-        Returns:
-            tuple: A tuple containing:
-                - `np.ndarray`: The feature matrix of shape (num_samples, num_features).
-                - `list[str]`: A list of file paths relative to the root of the project.
-                                Used to display human readable sample.
-        """
-        pass
-
+        ...

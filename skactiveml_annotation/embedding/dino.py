@@ -1,8 +1,10 @@
-from pathlib import Path
-from typing import Callable, cast
 import logging
+from pathlib import Path
+from typing import Callable, cast, override
 
 import numpy as np
+import numpy.typing as npt
+
 from PIL import Image
 
 
@@ -14,43 +16,23 @@ except ImportError as e:
     logging.error(e)
     raise
 
-from skactiveml_annotation.core.shared_types import DashProgressFunc
-
 from .base import (
+    ProgressFunc,
     relative_to_root,
-    EmbeddingBaseAdapter
+    EmbeddingBaseAdapter,
 )
 
 
 class ImageDataset(torch.utils.data.Dataset):
     def __init__(self, data_path: Path, transform: Callable):
         self.transform = transform
-        self.image_paths = self._collect_valid_images(data_path)
+        self.image_paths =  [
+            path for path in data_path.iterdir()
+            if path.is_file()
+        ]
 
     def __len__(self) -> int:
         return len(self.image_paths)
-
-    def _collect_valid_images(self, data_path: Path) -> list[Path]:
-        """
-        Iterate over files in data_path and keep only valid images.
-        Invalid or unreadable images are skipped with a warning.
-        """
-        logging.info("Collecting valid images ...")
-
-        valid_paths: list[Path] = []
-
-        for path in data_path.iterdir():
-            if not path.is_file():
-                continue
-
-            try:
-                with Image.open(path) as img:
-                    img.verify()  # integrity check
-                valid_paths.append(path)
-            except Exception as e:
-                logging.warning(f"Skipping invalid image file: {path} ({e})")
-
-        return valid_paths
 
     def __getitem__(self, idx) -> tuple[torch.Tensor, str]:
         image_path = self.image_paths[idx]
@@ -59,14 +41,12 @@ class ImageDataset(torch.utils.data.Dataset):
             # Open the image using Pillow
             image = Image.open(image_path).convert('RGB')
         except Exception as e:
-            # This error should not occure becauce all image files are checked
-            # beforehand.
             logging.error(f"Unexpected error loading image {image_path}: {e}")
             raise
 
         # Transform pil image to a tensor of shape (3, h, w), containg raw data
         image_tensor: torch.Tensor = self.transform(image)
-        return image_tensor, str(relative_to_root(image_path))
+        return image_tensor, relative_to_root(image_path)
 
 
 class TorchVisionAdapter(EmbeddingBaseAdapter):
@@ -101,49 +81,43 @@ class TorchVisionAdapter(EmbeddingBaseAdapter):
         # Set the model to evaluation mode
         self.model.eval()
 
-
+    @override
     def compute_embeddings(
         self,
         data_path: Path,
-        progress_func: DashProgressFunc
-    ) -> tuple[np.ndarray, list[Path]]:
-        """
-        Load images from the directory in batches, process them through the model,
-        and return the concatenated feature matrix and corresponding file names.
-        """
-        logging.info(f"Compute Torchvision embedding using device: {self.device}")
+        progress_func: ProgressFunc,
+    ) -> tuple[npt.NDArray, list[str]]:
+        logging.info(f"Compute Torchvision embedding using device: {self.device} ...")
 
         dataset = ImageDataset(data_path, self.transform)
-        n_samples = len(dataset)
-        dataloader = DataLoader(dataset, batch_size=self.batch_size, num_workers=4)
-        embeddings_list = []
-        file_path_list = []
+        dataloader = DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            num_workers=4,
+        )
 
-        processed_samples = 0
-        steps = 100
-        next_report = steps
+        embeddings: npt.NDArray | None = None
+        num_samples = len(dataset)
+        file_paths = [""] * num_samples
+        progress = 0
 
-        # Disable gradient tracking since we are in inference mode
-        with torch.no_grad():
-            for batch_tensor, file_paths in dataloader:
-                # Move the batch_tensor to the correct device
+        with torch.inference_mode():
+            for batch_tensor, batch_paths in dataloader:
+
                 batch_tensor = batch_tensor.to(self.device)
+                X = self.model(batch_tensor).cpu().numpy()
 
-                # Get embeddings for all images in the batch
-                embeddings = self.model(batch_tensor)
+                if embeddings is None:
+                    embeddings = np.empty((num_samples, X.shape[1]), dtype=X.dtype)
 
-                # Append the embeddings and corresponding file names
-                embeddings_list.append(embeddings.cpu().numpy())
-                file_path_list.extend(file_paths)  # Ensure file_paths match embeddings
+                next_progress = progress + X.shape[0]
+                embeddings[progress: next_progress] = X
+                file_paths[progress: next_progress] = batch_paths
+                progress = next_progress
 
-                # Update progress counter and print every 1000 samples
-                processed_samples += batch_tensor.shape[0]
-                if processed_samples >= next_report:
-                    next_report += steps
-                    progress_func((processed_samples / n_samples) * 100)
+                progress_func(progress, num_samples)
 
-        # Concatenate all embeddings into a single feature matrix
-        feature_matrix = np.concatenate(embeddings_list, axis=0)
+        if embeddings is None:
+            raise RuntimeError("No embeddings were computed. Dataset was empty.")
 
-        # Return the feature matrix and corresponding file_paths
-        return feature_matrix, [Path(s) for s in file_path_list]
+        return embeddings, file_paths
