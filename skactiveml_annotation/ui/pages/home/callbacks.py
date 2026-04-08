@@ -298,16 +298,9 @@ def _create_dataset_selection(preselect: str | None):
 
 
 def _create_embedding_radio_group(selection: SelectionProgress):
-    dataset_cfg_id = selection.get_not_none(SelectionStep.DATASET)
-
-    modality = api.get_dataset_config_from_id(dataset_cfg_id).modality
-
-    # Only show embedding methods applicable to the modality of the dataset
-    options = [
-        emb for emb in api.get_embedding_config_options()
-        if modality in emb.modalities
-    ]
-
+    dataset_id = selection.get_not_none(SelectionStep.DATASET)
+    dataset_cfg = api.get_dataset_config_from_id(dataset_id)
+    options = api.get_embedding_options_for_dataset(dataset_cfg)
     formatted_options = [(cfg.id, cfg.display_name) for cfg in options]
 
     preselect = selection.get(SelectionStep.EMBEDDING)

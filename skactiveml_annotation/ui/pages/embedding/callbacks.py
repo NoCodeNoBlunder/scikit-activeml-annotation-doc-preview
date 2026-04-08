@@ -1,4 +1,5 @@
 
+import logging
 from dash import (
     Dash,
     Input,
@@ -7,6 +8,8 @@ from dash import (
     callback,
     callback_context,
 )
+
+import dash
 from dash.exceptions import PreventUpdate
 
 import dash_mantine_components as dmc
@@ -111,7 +114,15 @@ def register(app: Dash):
         util.logging.configure_logging_background_callback()
 
         selection = Selection.model_validate_json(selection_json)
-        _compute_embedding(selection, progress_func)
+
+        try:
+            _compute_embedding(selection, progress_func)
+        except Exception as e:
+            logging.error(f"Embedding can not be computed because of error:\n{e}")
+            return dict(
+                title="Embedding computation failed",
+                embedding_button_container=_create_change_page_buttons(True)
+            )
 
         return dict(
             title="Embedding completed!",
@@ -153,8 +164,15 @@ def register(app: Dash):
 
 
 def _compute_embedding(selection: Selection, progress_func: DashProgressFunc):
+    def update_progress_func(progress: int, total: int):
+        progress_func(progress / total * 100)
+
     activeml_cfg = ui.common.compose_from_state(selection)
-    api.compute_embeddings(activeml_cfg, progress_func)
+    api.compute_and_save_embeddings(
+        activeml_cfg.dataset,
+        activeml_cfg.embedding,
+        update_progress_func,
+    )
 
 
 def _create_selected_embedding_view(selection: Selection):
@@ -168,7 +186,11 @@ def _create_selected_embedding_view(selection: Selection):
     )
 
 
-def _create_change_page_buttons():
+def _create_change_page_buttons(no_annot_button: bool = False):
     home_button = dmc.Button('Home', id=ids.GO_HOME_BUTTON)
-    annot_button = dmc.Button("Annotation", id=ids.GO_ANNOTATION_BUTTON)
+    annot_button = dmc.Button(
+        "Annotation",
+        id=ids.GO_ANNOTATION_BUTTON,
+        disabled=no_annot_button,
+    )
     return [home_button, annot_button]

@@ -9,6 +9,7 @@ dash-player>=1.1.0
 dash_extensions>=2.0.4
 tzdata>=2025.3 # Needed for dash_extensions on windows
 
+tqdm>=4.67.1
 numpy>=1.26.4
 isodate>=0.7.2
 pydantic>=2.12.5

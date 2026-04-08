@@ -81,7 +81,6 @@ class EmbeddingConfig(pydantic.BaseModel):
     modalities: list[Modality]
 
 
-# TODO:
 class QueryStrategyConfig(pydantic.BaseModel):
     """Configuration for a pool-based active learning query strategy.
 
@@ -107,7 +106,6 @@ class QueryStrategyConfig(pydantic.BaseModel):
     definition: QueryStrategyTarget
 
 
-# TODO:
 class ModelConfig(pydantic.BaseModel):
     """Configuration for a model available for evaluation and annotation.
 
@@ -172,22 +170,16 @@ def _instantiate(cfg: pydantic.BaseModel, expected_type: type[T], **kwargs: Any)
         cfg_dict = cfg.model_dump(by_alias=True)
         x = hydra.utils.instantiate(cfg_dict, **kwargs)
     except Exception as e:
-        logging.error(
-            "\n".join([
-                f"Hydra failed to instantiate instance of: {expected_type.__name__}.",
-                f"Config: {cfg.model_dump(by_alias=True)}",
-                f"Exception: {e}",
-            ])
-        )
-        raise
+        raise RuntimeError(
+            f"Failed to instantiate {expected_type.__name__} from config {cfg.model_dump(by_alias=True)}.\n"
+            f"The _target_ field is likely misconfigured."
+        ) from e
+
 
     if not isinstance(x, expected_type):
-        logging.error("\n".join([
-            "Hydra instantiated unexpected type:",
-            f"Expected type: {expected_type.__name__}",
-            f"Actual type:   {type(x).__name__}",
-        ]))
         raise TypeError(
-            f"Expected instance of {expected_type.__name__}, got {type(x).__name__}"
+            f"Instantiated instance of {type(x).__name__} but expected {expected_type.__name__}.\n"
+            f"_target_ must point to a class that is instance of {expected_type.__name__}."
         )
+
     return x

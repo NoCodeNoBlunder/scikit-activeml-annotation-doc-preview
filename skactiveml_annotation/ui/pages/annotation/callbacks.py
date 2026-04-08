@@ -82,9 +82,7 @@ def register(app: Dash):
 
         if annot_progress.is_all_annotated():
             if batch is None:
-                # Restore batch
-                history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
-                batch = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
+                batch = api.restore_batch(activeml_cfg, False, batch_size)
 
             must_query = False
         else:
@@ -297,7 +295,6 @@ def register(app: Dash):
             batch=Output(BATCH_STATE, 'data', allow_duplicate=True),
         ),
         prevent_initial_call=True,
-        # background=True, # LRU Cache won't work with this
     )
     def on_next_batch(
         trigger: bool | None,
@@ -314,13 +311,10 @@ def register(app: Dash):
         activeml_cfg = common.compose_from_state(selection)
         dataset_id = activeml_cfg.dataset.id
 
-        global_history_idx = api.get_global_history_idx(dataset_id)
-        history_size = api.get_num_annotated(dataset_id)
-        num_restorable = max(0, history_size - (global_history_idx + 1))
-
+        num_restorable = api.get_num_restorable(activeml_cfg.dataset.id)
         if num_restorable >= batch_size:
             # No Active ML needed just restore Batch size many samples
-            batch = api.restore_batch(activeml_cfg, global_history_idx, True, batch_size)
+            batch = api.restore_batch(activeml_cfg, True, batch_size)
 
             # This assumes the idx is on the last of the previous batch
             api.increment_global_history_idx(dataset_id, 1)
@@ -328,17 +322,19 @@ def register(app: Dash):
         else:
             # Active learning needed. But first restore what is left to restore
             if num_restorable > 0:
-                batch_one = api.restore_batch(activeml_cfg, global_history_idx, True, num_restorable)
+                batch_one = api.restore_batch(activeml_cfg, True, num_restorable)
                 emb_indices_one = batch_one.emb_indices
                 api.increment_global_history_idx(dataset_id, 1)
 
                 # Only the difference has to be queried
                 session_cfg.batch_size = batch_size - num_restorable
 
-                X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
-
-                # Remove samples from pool that have been restored. To avoid possible duplication
-                batch_two = api.request_query(activeml_cfg, session_cfg, X, emb_indices_one)
+                try:
+                    # Remove samples from pool that have been restored. To avoid possible duplication
+                    batch_two = api.request_query(activeml_cfg, session_cfg, emb_indices_one)
+                except Exception as e:
+                    logging.error(f"Cannot request querry because of error\n{e}")
+                    raise PreventUpdate
 
                 batch = batch_one.concat(batch_two)
 
@@ -347,9 +343,11 @@ def register(app: Dash):
                 api.set_global_history_idx(dataset_id, new_history_idx)
 
                 session_cfg.batch_size = batch_size - num_restorable
-
-                X = api.load_embeddings(activeml_cfg.dataset.id, activeml_cfg.embedding.id)
-                batch = api.request_query(activeml_cfg, session_cfg, X)
+                try:
+                    batch = api.request_query(activeml_cfg, session_cfg)
+                except Exception as e:
+                    logging.error(f"Cannot request query because of error\n{e}")
+                    raise PreventUpdate
 
         return dict(
             ui_trigger=True,
@@ -446,13 +444,12 @@ def register(app: Dash):
             dataset_id = selection.dataset_id
             embedding_id = selection.embedding_id
             file_paths = api.get_file_paths(dataset_id, embedding_id, batch.emb_indices)
+            activeml_cfg = common.compose_from_state(selection)
+
             api.update_annotations(dataset_id, file_paths, batch.annotations)
 
-            activeml_cfg = common.compose_from_state(selection)
-            history_idx = api.get_global_history_idx(activeml_cfg.dataset.id)
-
             try:
-                batch = api.restore_batch(activeml_cfg, history_idx, False, batch_size)
+                batch = api.restore_batch(activeml_cfg, False, batch_size)
             except RuntimeError:
                 logging.warning("Raise PreventUpdate. Cannot go back further. No Annotations left")
                 # Have to do ui_trigger so the buttons are enabled

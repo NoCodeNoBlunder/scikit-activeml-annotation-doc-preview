@@ -148,10 +148,10 @@ def _get_sklearn_classes(clf: SkactivemlClassifier) -> list[str]:
 def request_query(
     cfg: ActiveMlConfig,
     session_cfg: SessionConfig,
-    X: np.ndarray,
     filter_out_emb_indices: list[int] | None = None,
 ) -> Batch:
-    y = _load_or_init_annotations(X, cfg.dataset)
+    X = load_embeddings(cfg.dataset.id, cfg.embedding.id)
+    y = _load_or_init_annotations(len(X), cfg.dataset)
 
     if filter_out_emb_indices is not None:
         # Exclude these embedding indices from querying by marking them as discarded
@@ -225,7 +225,7 @@ def _safe_predict_proba(
     Parameters
     ----------
     clf : SkactivemlClassifier
-        Classifier that implements ``predict_proba``.
+        Classifier to attempt probability prediction with.
     emb_samples : np.ndarray
         Input samples of shape (n_samples, n_features).
 
@@ -256,32 +256,47 @@ def _safe_predict_proba(
     return class_probas
 
 
-def compute_embeddings(
-    activeml_cfg: ActiveMlConfig,
-    progress_func: DashProgressFunc
+def compute_and_save_embeddings(
+    dataset_cfg: DatasetConfig,
+    embedding_cfg: EmbeddingConfig,
+    progress_func: Callable[[int, int], None],
 ):
-    embedding_cfg = activeml_cfg.embedding
-    dataset_cfg = activeml_cfg.dataset
-    dataset_id = dataset_cfg.id
-
     data_path = dataset_cfg.data_path
     if not data_path.is_absolute():
         data_path = sap.ROOT_PATH / data_path
 
-    adapter = embedding_cfg.definition.instantiate()
- 
-    X, file_paths = adapter.compute_embeddings(data_path, progress_func)
+    try:
+        embedder = embedding_cfg.definition.instantiate()
+    except Exception as e:
+        raise
 
-    file_paths_str = _normalize_and_validate_paths(file_paths, X)
+    try:
+        logging.info("Compute embedding ...")
+        X, file_paths = embedder.compute_embeddings(data_path, progress_func)
+    except Exception as e:
+        logging.error(f"Embedding computation failed with error:\n {e}")
+        return
 
-    # Unique key
-    key = f"{dataset_id}_{embedding_cfg.id}"
-    path = sap.EMBEDDED_PATH / f"{key}.npz"  # Use .npz to store multiple arrays
+    _save_embeddings(
+        dataset_cfg.id,
+        embedding_cfg.id,
+        X,
+        file_paths,
+    )
 
-    logging.info(f"Embedding has been computed and saved at {path}")
 
-    # Store relative file_paths
-    np.savez(path, X=X, file_paths=file_paths_str)
+def _save_embeddings(
+    dataset_id: str,
+    embedding_id: str,
+    X: npt.NDArray[np.number],
+    file_paths: list[str],
+):
+    file_paths = _normalize_and_validate_paths(file_paths, len(X))
+
+    key = f"{dataset_id}_{embedding_id}"
+    path = sap.EMBEDDED_PATH / f"{key}.npz"
+    np.savez(path, X=X, file_paths=file_paths)
+    logging.info(f"Embedding saved at {path}")
 
 
 @lru_cache(maxsize=1)
@@ -293,7 +308,10 @@ def load_embeddings(
     path = sap.EMBEDDED_PATH / f"{key}.npz"
 
     if not path.exists():
-        raise RuntimeError(f"Cannot get embedding at path: {path}! \nEmbedding should exists already")
+        raise RuntimeError(
+            f"Cannot get embedding at path: {path}. "
+            "Embedding should already exist"
+        )
 
     with np.load(str(path)) as data:
         X = data['X']
@@ -310,7 +328,7 @@ def auto_annotate(
     threshold: float,
     sort_by_proba: bool = True
 ):
-    y = _load_or_init_annotations(X, cfg.dataset)
+    y = _load_or_init_annotations(len(X), cfg.dataset)
 
     model_cfg = cfg.model
     if model_cfg is None:
@@ -505,11 +523,10 @@ def _insert_class_prob_column(probas: list[list[float]], idx: int) -> list[list[
 
 
 def _load_or_init_annotations(
-    X: np.ndarray,
+    num_samples: int,
     dataset_cfg: DatasetConfig,
 ) -> np.ndarray:
     """Load existing labels or initialize with missing labels."""
-    num_samples = len(X)
     max_label_name_len = max(
         len(s)
         for s in dataset_cfg.classes + [DISCARD_MARKER, MISSING_LABEL_MARKER]
@@ -585,7 +602,6 @@ def _serialize_annotations(dataset_id: str, annotations: OrderedDict[str, Annota
             indent=4
         )
 
-# TODO: is this method needed when there is update_annotation_json()
 def update_annotations(
     dataset_id: str,
     file_paths: list[str],
@@ -679,7 +695,10 @@ def _build_activeml_classifier(
     if _clf_accepts_random(clf_cls):
         kwargs['random_state'] = random_state
 
-    clf = model_cfg.definition.instantiate(**kwargs)
+    try:
+        clf = model_cfg.definition.instantiate(**kwargs)
+    except Exception:
+        raise
 
     if isinstance(clf, SkactivemlClassifier):
         # Classifier is already wrapped aka supports missing labels
@@ -720,10 +739,13 @@ def _setup_query(cfg: ActiveMlConfig, session_cfg: SessionConfig) -> tuple[Query
     clf = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
 
     # max_candidates for subsampling.
-    qs = cfg.query_strategy.definition.instantiate(
-        random_state = random_state,
-        missing_label = MISSING_LABEL_MARKER
-    )
+    try:
+        qs = cfg.query_strategy.definition.instantiate(
+            random_state = random_state,
+            missing_label = MISSING_LABEL_MARKER
+        )
+    except Exception:
+        raise
 
     if session_cfg.subsampling is not None:
         qs = SubSamplingWrapper(
@@ -741,37 +763,28 @@ def _setup_query(cfg: ActiveMlConfig, session_cfg: SessionConfig) -> tuple[Query
 
 
 def _normalize_and_validate_paths(
-    file_paths: list[Path],
-    X: np.ndarray,
+    file_paths: list[str],
+    size_embeddings: int,
 ) -> list[str]:
-    if len(file_paths) != len(X):
-        raise RuntimeError(f'Amount of samples does not match amount of file paths!')
+    if len(file_paths) != size_embeddings:
+        raise RuntimeError('Amount of samples does not match amount of file paths!')
 
-    file_paths_str: list[str] = []
     has_absolute = False
-
-    for p in file_paths:
+    result: list[str] = []
+ 
+    for p in map(Path, file_paths):
         if p.is_absolute():
             has_absolute = True
-            if not p.is_file():
-                raise RuntimeError(f'path does not exist or is not a file: {p}')
-
-            p_str = str(p)
         else:
-            full_p = sap.ROOT_PATH / p
-            if not full_p.is_file():
-                raise RuntimeError(
-                    f'Resolved path: {full_p} does not exist or is not a file.\n'
-                    f'resolved from relative path: {p}'
-                )
-
-            p_str = p.as_posix()
-
-        file_paths_str.append(p_str)
+            p = sap.ROOT_PATH / p
+        if not p.is_file():
+            raise RuntimeError(f'Path does not exist or is not a file: {p}')
+        result.append(p.as_posix())
 
     if has_absolute:
         logging.warning("absolute paths were provided. Results won't be easily shareable")
-    return file_paths_str
+
+    return result
 
 
 def get_one_file_path(
@@ -802,9 +815,15 @@ def get_file_paths(
         return file_paths[emb_indices].tolist()
 
 
+def get_num_restorable(dataset_id: str) -> int:
+    global_history_idx = _get_global_history_idx(dataset_id)
+    history_size = get_num_annotated(dataset_id)
+    return max(0, history_size - (global_history_idx + 1))
+
+
 def ensure_global_history_idx_init(dataset_id: str):
     try:
-        global_history_idx = get_global_history_idx(dataset_id)
+        global_history_idx = _get_global_history_idx(dataset_id)
         return
     except FileNotFoundError:
         history_size = get_num_annotated(dataset_id)
@@ -817,7 +836,7 @@ def ensure_global_history_idx_init(dataset_id: str):
         set_global_history_idx(dataset_id, global_history_idx)
 
 
-def get_global_history_idx(dataset_id: str) -> int:
+def _get_global_history_idx(dataset_id: str) -> int:
     """
     Retrieve the history index for a given dataset ID.
     Returns None if the file dose not exist
@@ -849,14 +868,13 @@ def set_global_history_idx(dataset_id: str, value: int) -> None:
 
 
 def increment_global_history_idx(dataset_id: str, value: int):
-    current_idx = get_global_history_idx(dataset_id)
+    current_idx = _get_global_history_idx(dataset_id)
     new_val = current_idx + value
     set_global_history_idx(dataset_id, new_val)
     
 
 def restore_batch(
     cfg: ActiveMlConfig,
-    history_idx: int,
     restore_forward: bool,
     num_restore: int,
 ) -> Batch:
@@ -865,6 +883,8 @@ def restore_batch(
     # If it cant restore it will throw an error
     # Assumes annotations are stored in json in the same order they were made.
     # History_idx is exclusive and wont be restored
+
+    history_idx = _get_global_history_idx(cfg.dataset.id)
 
     if restore_forward:
         start = history_idx + 1
@@ -893,7 +913,7 @@ def restore_batch(
     clf = _build_activeml_classifier(model_cfg, cfg.dataset, random_state=random_state)
 
     X = load_embeddings(cfg.dataset.id, cfg.embedding.id)
-    y = _load_or_init_annotations(X, cfg.dataset)
+    y = _load_or_init_annotations(len(X), cfg.dataset)
     X_cand, y_cand, _ = _filter_discarded_samples(X, y)
 
     clf.fit(X_cand, y_cand)

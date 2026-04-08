@@ -25,7 +25,6 @@ def _install_torchvision_images(
     dataset_cls: type[VisionDataset],
     kwargs: dict[str, Any],
 ):
-    # TODO: put it in the requirements
     from tqdm import tqdm
     from concurrent.futures import ThreadPoolExecutor
 
